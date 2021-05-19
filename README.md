@@ -2,18 +2,30 @@ Onsei: Tool to automatically evaluate pitch accent accuracy in Japanese
 ========================================================================
 
 This project aims at creating tools to automatically assess the pitch accent accuracy
-of a Japanese language learner, by comparing spoken sentence with a native
+of a Japanese language learner, by comparing a spoken sentence with a native
 speaker's recording.
 
 **PLEASE NOTE THAT THIS IS AN EXPERIMENTAL WORK IN PROGRESS !**
 
-Methodology:
+Methodology
+------------
+
+As Japanese is a pitch-accent based language, the key intuition here is that
+mispronunciations from foreign learners will likely be related to incorrect pitch
+patterns.
+On the other hand, we assume that the intensity (i.e., volume of the voice) is correctly
+imitated by the student.
+Therefore, we can use the intensity to align the student recording with the teacher's,
+then evaluate the pronunciation based on pitch discrepancies.
+
+The comparison process works as follows:
 - Crop the teacher and student recordings to remove the noise before and after the sentence
-- Align the student recording with the teacher's, using a DTW on speech intensity
+- Align the student recording with the teacher's, using Dynamic Time Warping (DTW) on speech intensity
 - Apply the same alignment on the pitch signals and normalize them
 - Compute a distance based on the aligned and normalized pitch signals
 
-TODOs:
+TODOs
+------
 - test it on more samples to see if the distance really works
 - improve the alignment by segmenting on words or phonemes
 
@@ -47,11 +59,14 @@ First comparing the mispronounced sentence with the teacher's:
 python3 onsei.py data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student1.wav
 # Mean distance: 1.21 (smaller means student speech is closer to teacher)
 ```
+![Graphs for the "bad" student](graphs_bad_student.png)
 
 Then comparing the rectified sentence with the teacher's:
 ```bash
 $ python3 onsei.py data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student3.wav
 # Mean distance: 0.57 (smaller means student speech is closer to teacher)
 ```
+![Graphs for the "good" student](graphs_good_student.png)
+(Note that the natural offset in the pitch is removed when we normalize the pitches to compute the distance)
 
 As the student fixes the mistakes, we can see that the computed distance lowers.
