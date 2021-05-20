@@ -1,7 +1,9 @@
 import contextlib
+import json
 import os
 import sys
 from collections import defaultdict
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,7 +14,8 @@ from dtw import dtw, rabinerJuangStepPattern
 from utils import cleanup_pitch_freq, \
     plot_pitch_and_spectro, \
     draw_intensity, ts_sequences_to_index, replacing_zero_by_nan, \
-    detect_voice_activity_from_pitch
+    znormed
+from vad import detect_voice_with_webrtcvad
 
 app = typer.Typer()
 
@@ -31,15 +34,18 @@ def view(wav_filename: str) -> None:
     intensity = snd.to_intensity()
 
     # Run a simple voice detection algorithm to find where the speech starts and ends
-    vad, begin_ts, end_ts = detect_voice_activity_from_pitch(pitch)
+    # vad, begin_ts, end_ts = detect_voice_activity_from_pitch(pitch)
+    vad_ts, vad_is_speech, begin_ts, end_ts = detect_voice_with_webrtcvad(wav_filename)
 
     plt.figure()
     plt.subplot(211)
     plot_pitch_and_spectro(snd, pitch.xs(),
                            pitch_freq_filtered)
     plt.subplot(212)
-    draw_intensity(intensity)
-    plt.plot(pitch.xs(), vad * pitch_freq)
+    # draw_intensity(intensity)
+    # plt.plot(pitch.xs(), vad * pitch_freq)
+    plt.plot(vad_ts, vad_is_speech)
+    plt.xlim(pitch.xs()[0], pitch.xs()[-1])
     plt.title("VAD Teacher")
     plt.show()
 
@@ -72,13 +78,16 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
     intensity_student = snd_student.to_intensity()
 
     # Run a simple voice detection algorithm to find where the speech starts and ends
-    vad_teacher, begin_ts_teacher, end_ts_teacher = detect_voice_activity_from_pitch(
-        pitch_teacher)
+    #vad_teacher, begin_ts_teacher, end_ts_teacher = detect_voice_activity_from_pitch(
+    #    pitch_teacher)
+    vad_ts_teacher, vad_is_speech_teacher, begin_ts_teacher, end_ts_teacher = detect_voice_with_webrtcvad(teacher_wav_filename)
     begin_idx_teacher, end_idx_teacher = ts_sequences_to_index(
         [begin_ts_teacher, end_ts_teacher], intensity_teacher.xs())
 
-    vad_student, begin_ts_student, end_ts_student = detect_voice_activity_from_pitch(
-        pitch_student)
+    # vad_student, begin_ts_student, end_ts_student = detect_voice_activity_from_pitch(
+    #     pitch_student)
+    vad_ts_student, vad_is_speech_student, begin_ts_student, end_ts_student = detect_voice_with_webrtcvad(
+        student_wav_filename)
     begin_idx_student, end_idx_student = ts_sequences_to_index(
         [begin_ts_student, end_ts_student], intensity_student.xs())
 
@@ -95,33 +104,32 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
         plt.figure()
         plt.subplot(211)
         draw_intensity(intensity_teacher)
-        plt.plot(pitch_teacher.xs(),
-                 vad_teacher * np.max(intensity_teacher))
+        plt.plot(vad_ts_teacher,
+                 vad_is_speech_teacher * np.max(intensity_teacher))
+        # plt.plot(pitch_teacher.xs(),
+        #          vad_teacher * np.max(intensity_teacher))
         plt.title("VAD Teacher")
         plt.subplot(212)
         draw_intensity(intensity_student)
-        plt.plot(pitch_student.xs(),
-                 vad_student * np.max(intensity_student))
+        plt.plot(vad_ts_student,
+                 vad_is_speech_student * np.max(intensity_student))
+        # plt.plot(pitch_student.xs(),
+        #          vad_student * np.max(intensity_student))
         plt.title("VAD Student")
         plt.show(block=False)
 
     # Align speech sequence using a DTW on intensity
 
     # x is the query (which we will "warp") and y the reference
-    x = intensity_student.values[0, begin_idx_student:end_idx_student]
-    y = intensity_teacher.values[0, begin_idx_teacher:end_idx_teacher]
+    x = znormed(intensity_student.values[0, begin_idx_student:end_idx_student])
+    y = znormed(intensity_teacher.values[0, begin_idx_teacher:end_idx_teacher])
 
     # Align the Rabiner-Juang type VI-c unsmoothed recursion
-    align = dtw(x, y, keep_internals=True, step_pattern=rabinerJuangStepPattern(6, "c"))
+    # step_pattern = rabinerJuangStepPattern(6, "c", smoothed=True)
+    step_pattern = rabinerJuangStepPattern(4, "c", smoothed=True)
+    # step_pattern = "symmetric2"
+    align = dtw(x, y, keep_internals=True, step_pattern=step_pattern)
     # align.plot(type="threeway")  # Display the warping curve, i.e. the alignment curve
-
-    # Plot the warped query along with reference
-    if show_graphs:
-        plt.figure()
-        plt.plot(y, 'b-')
-        plt.plot(align.index2, x[align.index1], 'g-')
-        plt.title("Teacher and warped student intensity (teacher blue)")
-        plt.show(block=False)
 
     # Timestamp for each point in the alignment
     align_ts_student = intensity_student.xs()[begin_idx_student:end_idx_student][
@@ -174,7 +182,8 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
 
 
 @app.command()
-def benchmark(teacher_base_folder: str, student_base_folder: str):
+def benchmark(teacher_base_folder: str, student_base_folder: str,
+              stats_filepath: Optional[str] = None):
     """
     Compute stats by comparing many sentences.
     The `teacher_base_folder` and `student_base_folder` must be organized with one
@@ -210,7 +219,14 @@ def benchmark(teacher_base_folder: str, student_base_folder: str):
                             distance = compare(teacher_wav_filename,
                                                student_wav_filename,
                                                show_graphs=False)
-                        distances_by_sentence[sentence].append(distance)
+                        # print(f"teacher_wav_filename={teacher_wav_filename} "
+                        #       f"student_wav_filename={student_wav_filename} "
+                        #       f"distance={distance}")
+                        if np.isnan(distance):
+                            sys.stderr.write(f"Invalid distance for {teacher_wav_filename} and "
+                                             f"{student_wav_filename} (could match the signals)")
+                        else:
+                            distances_by_sentence[sentence].append(distance)
                     except:
                         sys.stderr.write(
                             f"Error when comparing {teacher_wav_filename} "
@@ -228,6 +244,15 @@ def benchmark(teacher_base_folder: str, student_base_folder: str):
         distances.extend(values)
     print("Distances stats:")
     print(f"mean: {np.mean(distances)}, std: {np.std(distances)}")
+
+    if stats_filepath:
+        stats = {
+            "teacher_base_folder": teacher_base_folder,
+            "student_base_folder": student_base_folder,
+            "distances_by_sentence": distances_by_sentence,
+        }
+        with open(stats_filepath, 'a') as f:
+            f.write(json.dumps(stats))
 
 
 if __name__ == "__main__":

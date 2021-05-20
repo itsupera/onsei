@@ -164,3 +164,6 @@ def replacing_zero_by_nan(x):
     x_copy = x.copy()
     x_copy[x_copy == 0] = np.nan
     return x_copy
+
+def znormed(x):
+    return (x - np.mean(x)) / np.std(x)

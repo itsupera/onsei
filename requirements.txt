@@ -1,5 +1,7 @@
+dtw-python
 matplotlib
 numpy>=1.20.0  # avoid v1.19 because of binary incompatibility issues
 praat-parselmouth
+sox
 typer
-dtw-python
+webrtcvad
