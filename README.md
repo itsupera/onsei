@@ -44,6 +44,8 @@ pip3 install -r requirements.txt
 Running
 --------
 
+### Comparing teacher and student recordings
+
 The following script compares teacher and student recordings of the same sentence,
 show a bunch of graphs to visualize the differences and computes a distance, i.e.,
 how close the student pronunciation is to the teacher's.
@@ -56,17 +58,28 @@ The sample recordings are:
 
 First comparing the mispronounced sentence with the teacher's:
 ```bash
-python3 onsei.py data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student1.wav
+python3 onsei.py compare data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student1.wav
 # Mean distance: 1.21 (smaller means student speech is closer to teacher)
 ```
 ![Graphs for the "bad" student](graphs_bad_student.png)
 
 Then comparing the rectified sentence with the teacher's:
 ```bash
-$ python3 onsei.py data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student3.wav
+$ python3 onsei.py compare data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student3.wav
 # Mean distance: 0.57 (smaller means student speech is closer to teacher)
 ```
 ![Graphs for the "good" student](graphs_good_student.png)
 (Note that the natural offset in the pitch is removed when we normalize the pitches to compute the distance)
 
 As the student fixes the mistakes, we can see that the computed distance lowers.
+
+### Other commands
+
+To see other possible commands, see the help of the CLI:
+```bash
+# List of the commands
+python3 onsei.py --help
+
+# Details on a specific command
+python3 onsei.py <command> --help
+```

@@ -136,10 +136,20 @@ def detect_voice_activity_from_intensity(intensity: parselmouth.Intensity) -> tu
     print(f"Noise level: {noise:.2f} dB")
     sig = intensity.values[0, :]
     mean = np.mean(sig)
+    print(f"Mean volume: {mean:.2f} dB")
     vad = np.array([(1.0 if x > (noise + ((mean - noise) / 1.5)) else 0.0) for x in sig])
-    begin_idx, end_idx = vad.argmax(), len(vad) - vad[::-1].argmax()
+    begin_idx, end_idx = vad.argmax(), len(vad) - vad[::-1].argmax() - 1
     begin_ts, end_ts = intensity.xs()[begin_idx], intensity.xs()[end_idx]
     return vad, begin_idx, end_idx, begin_ts, end_ts
+
+
+def detect_voice_activity_from_pitch(pitch: parselmouth.Pitch):
+    pitch_freq = pitch.selected_array['frequency']
+    vad = pitch_freq > 0
+    begin_idx, end_idx = vad.argmax(), len(vad) - vad[::-1].argmax() - 1
+    begin_ts, end_ts = pitch.xs()[begin_idx], pitch.xs()[end_idx]
+    print(f"Voice detected between {begin_ts:.2f}s and {end_ts:.2f}s")
+    return vad, begin_ts, end_ts
 
 
 def ts_sequences_to_index(ts_seq1, ts_seq2):
