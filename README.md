@@ -1,6 +1,8 @@
 Onsei: Tool to automatically evaluate pitch accent accuracy in Japanese
 ========================================================================
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?filepath=work%2Fnotebook.ipynb)
+
 This project aims at creating tools to automatically assess the pitch accent accuracy
 of a Japanese language learner, by comparing a spoken sentence with a native
 speaker's recording.
@@ -32,6 +34,8 @@ TODOs
 Setup
 ------
 
+Tested on Ubuntu 20.04 with Python 3.8.5
+
 ### Docker install (Jupyter notebook)
 
 ```bash
@@ -41,9 +45,13 @@ docker run -p 8888:8888 -e JUPYTER_ENABLE_LAB=yes -v "$PWD":/home/jovyan/work on
 Open the notebook in your browser:
 http://127.0.0.1:8888/lab/workspaces/auto-V/tree/work/notebook.ipynb
 
-### Local install
+Alternatively, it should work with `jupyter-repo2docker`
+```bash
+pip3 install jupyter-repo2docker
+jupyter-repo2docker -E .
+```
 
-Tested on Ubuntu 20.04 with Python 3.8.5:
+### Local install
 
 ```bash
 sudo apt install python3 python3-virtualenv
@@ -69,14 +77,14 @@ The sample recordings are:
 
 First comparing the mispronounced sentence with the teacher's:
 ```bash
-python3 onsei.py compare data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student1.wav
+python3 -m onsei.cli compare data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student1.wav
 # Mean distance: 1.21 (smaller means student speech is closer to teacher)
 ```
 ![Graphs for the "bad" student](graphs_bad_student.png)
 
 Then comparing the rectified sentence with the teacher's:
 ```bash
-$ python3 onsei.py compare data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student3.wav
+python3 -m onsei.cli compare data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student3.wav
 # Mean distance: 0.57 (smaller means student speech is closer to teacher)
 ```
 ![Graphs for the "good" student](graphs_good_student.png)
@@ -89,8 +97,8 @@ As the student fixes the mistakes, we can see that the computed distance lowers.
 To see other possible commands, see the help of the CLI:
 ```bash
 # List of the commands
-python3 onsei.py --help
+python3 -m onsei.cli --help
 
 # Details on a specific command
-python3 onsei.py <command> --help
+python3 -m onsei.cli <command> --help
 ```

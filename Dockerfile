@@ -14,3 +14,7 @@ ADD requirements.txt .
 ADD notebook-requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 RUN pip3 install --no-cache-dir -r notebook-requirements.txt
+
+ADD notebook.ipynb /home/jovyan/work/
+ADD onsei /home/jovyan/work/onsei
+ADD data /home/jovyan/work/data

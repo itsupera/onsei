@@ -11,11 +11,11 @@ import parselmouth
 import typer
 from dtw import dtw, rabinerJuangStepPattern
 
-from utils import cleanup_pitch_freq, \
+from onsei.utils import cleanup_pitch_freq, \
     plot_pitch_and_spectro, \
     draw_intensity, ts_sequences_to_index, replacing_zero_by_nan, \
     znormed
-from vad import detect_voice_with_webrtcvad
+from onsei.vad import detect_voice_with_webrtcvad
 
 app = typer.Typer()
 
