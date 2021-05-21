@@ -52,7 +52,7 @@ def view(wav_filename: str) -> None:
 
 @app.command()
 def compare(teacher_wav_filename: str, student_wav_filename: str,
-            show_graphs: bool = True) -> float:
+            show_graphs: bool = True, notebook: bool = False) -> float:
     """
     Compare a teacher and student recording of the same sentence
     """
@@ -155,9 +155,12 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
                                 / std_pitch_freq_teacher
     zscore_norm_pitch_student = (aligned_pitch_student - mean_pitch_freq_student) \
                                 / std_pitch_freq_student
+
+    distances_ts = []
     distances = []
-    for teacher, student in zip(zscore_norm_pitch_teacher, zscore_norm_pitch_student):
+    for idx, (teacher, student) in enumerate(zip(zscore_norm_pitch_teacher, zscore_norm_pitch_student)):
         if not np.isnan(teacher) and not np.isnan(student):
+            distances_ts.append(align_ts_teacher[idx])
             distances.append(abs(teacher - student))
     mean_distance = np.mean(distances)
     print(f"Mean distance: {mean_distance:.2f} "
@@ -166,17 +169,23 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
     # Plot the warped intensity and pitches
     if show_graphs:
         plt.figure()
-        plt.subplot(211)
+        plt.subplot(311)
         plt.plot(align_ts_teacher, y[align.index2], 'b-')
         plt.plot(align_ts_teacher, x[align.index1], 'g-')
         plt.title("Aligned student intensity (green) to match teacher (blue)")
-        plt.subplot(212)
-        plt.plot(align_ts_teacher, aligned_pitch_teacher, 'b.')
-        plt.plot(align_ts_teacher, aligned_pitch_student, 'g.')
-        plt.title("Applying the same alignment on pitch")
+        plt.subplot(312)
+        # plt.plot(align_ts_teacher, aligned_pitch_teacher, 'b.')
+        # plt.plot(align_ts_teacher, aligned_pitch_student, 'g.')
+        plt.plot(align_ts_teacher, zscore_norm_pitch_teacher, 'b.')
+        plt.plot(align_ts_teacher, zscore_norm_pitch_student, 'g.')
+        plt.title("Applying the same alignment on normalized pitch")
+        plt.subplot(313)
+        plt.plot(distances_ts, distances, 'r.')
+        plt.title('Pitch "error"')
         plt.show(block=False)
 
-        input("Press Enter to close graphs and quit")
+        if not notebook:
+            input("Press Enter to close graphs and quit")
 
     return mean_distance
 
