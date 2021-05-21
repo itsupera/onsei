@@ -32,6 +32,17 @@ TODOs
 Setup
 ------
 
+### Docker install (Jupyter notebook)
+
+```bash
+docker build -t onsei .
+docker run -p 8888:8888 -e JUPYTER_ENABLE_LAB=yes -v "$PWD":/home/jovyan/work onsei:latest
+```
+Open the notebook in your browser:
+http://127.0.0.1:8888/lab/workspaces/auto-V/tree/work/notebook.ipynb
+
+### Local install
+
 Tested on Ubuntu 20.04 with Python 3.8.5:
 
 ```bash
