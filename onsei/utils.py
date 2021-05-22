@@ -89,6 +89,8 @@ def plot_pitch_and_spectro(
     frequency_step=10.0,
     plot_maximum_frequency=500,
     title=None,
+    begin_ts=None,
+    end_ts=None,
 ):
     # If desired, pre-emphasize the sound fragment before calculating the spectrogram
     pre_emphasized_snd = snd.copy()
@@ -110,7 +112,9 @@ def plot_pitch_and_spectro(
     intensity = snd.to_intensity()
     draw_intensity(intensity)
 
-    plt.xlim([snd.xmin, snd.xmax])
+    xmin = snd.xmin if begin_ts is None else begin_ts
+    xmax = snd.xmax if end_ts is None else end_ts
+    plt.xlim([xmin, xmax])
 
     if title:
         plt.title(title)
@@ -167,3 +171,18 @@ def replacing_zero_by_nan(x):
 
 def znormed(x):
     return (x - np.mean(x)) / np.std(x)
+
+def plot_pitch_errors(pitch_diffs_ts, pitch_diffs):
+    cc = ['colors'] * len(pitch_diffs)
+    for n, val in enumerate(pitch_diffs):
+        if abs(val) < 1:
+            cc[n] = 'green'
+        elif abs(val) < 2:
+            cc[n] = 'yellow'
+        elif abs(val) < 3:
+            cc[n] = 'orange'
+        else:
+            cc[n] = 'red'
+
+    plt.bar(pitch_diffs_ts, pitch_diffs, width=0.008, color=cc)
+    plt.title('Pitch "error"')

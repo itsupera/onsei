@@ -14,7 +14,7 @@ from dtw import dtw, rabinerJuangStepPattern
 from onsei.utils import cleanup_pitch_freq, \
     plot_pitch_and_spectro, \
     draw_intensity, ts_sequences_to_index, replacing_zero_by_nan, \
-    znormed
+    znormed, plot_pitch_errors
 from onsei.vad import detect_voice_with_webrtcvad
 
 app = typer.Typer()
@@ -40,7 +40,8 @@ def view(wav_filename: str) -> None:
     plt.figure()
     plt.subplot(211)
     plot_pitch_and_spectro(snd, pitch.xs(),
-                           pitch_freq_filtered)
+                           pitch_freq_filtered,
+                           begin_ts=begin_ts, end_ts=end_ts)
     plt.subplot(212)
     # draw_intensity(intensity)
     # plt.plot(pitch.xs(), vad * pitch_freq)
@@ -63,8 +64,8 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
     snd_teacher = parselmouth.Sound(teacher_wav_filename)
     snd_student = parselmouth.Sound(student_wav_filename)
 
-    pitch_teacher = snd_teacher.to_pitch()
-    pitch_student = snd_student.to_pitch()
+    pitch_teacher = snd_teacher.to_pitch(time_step=0.02)
+    pitch_student = snd_student.to_pitch(time_step=0.02)
 
     pitch_freq_teacher = pitch_teacher.selected_array['frequency']
     pitch_freq_student = pitch_student.selected_array['frequency']
@@ -95,28 +96,30 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
         plt.figure()
         plt.subplot(211)
         plot_pitch_and_spectro(snd_teacher, pitch_teacher.xs(),
-                               pitch_freq_teacher_filtered, title="Teacher")
+                               pitch_freq_teacher_filtered, title="Teacher",
+                               begin_ts=begin_ts_teacher, end_ts=end_ts_teacher)
         plt.subplot(212)
         plot_pitch_and_spectro(snd_student, pitch_student.xs(),
-                               pitch_freq_student_filtered, title="Student")
+                               pitch_freq_student_filtered, title="Student",
+                               begin_ts=begin_ts_student, end_ts=end_ts_student)
         plt.show(block=False)
 
-        plt.figure()
-        plt.subplot(211)
-        draw_intensity(intensity_teacher)
-        plt.plot(vad_ts_teacher,
-                 vad_is_speech_teacher * np.max(intensity_teacher))
-        # plt.plot(pitch_teacher.xs(),
-        #          vad_teacher * np.max(intensity_teacher))
-        plt.title("VAD Teacher")
-        plt.subplot(212)
-        draw_intensity(intensity_student)
-        plt.plot(vad_ts_student,
-                 vad_is_speech_student * np.max(intensity_student))
-        # plt.plot(pitch_student.xs(),
-        #          vad_student * np.max(intensity_student))
-        plt.title("VAD Student")
-        plt.show(block=False)
+        # plt.figure()
+        # plt.subplot(211)
+        # draw_intensity(intensity_teacher)
+        # plt.plot(vad_ts_teacher,
+        #          vad_is_speech_teacher * np.max(intensity_teacher))
+        # # plt.plot(pitch_teacher.xs(),
+        # #          vad_teacher * np.max(intensity_teacher))
+        # plt.title("VAD Teacher")
+        # plt.subplot(212)
+        # draw_intensity(intensity_student)
+        # plt.plot(vad_ts_student,
+        #          vad_is_speech_student * np.max(intensity_student))
+        # # plt.plot(pitch_student.xs(),
+        # #          vad_student * np.max(intensity_student))
+        # plt.title("VAD Student")
+        # plt.show(block=False)
 
     # Align speech sequence using a DTW on intensity
 
@@ -156,12 +159,17 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
     zscore_norm_pitch_student = (aligned_pitch_student - mean_pitch_freq_student) \
                                 / std_pitch_freq_student
 
-    distances_ts = []
-    distances = []
+    pitch_diffs_ts = []
+    pitch_diffs = []
     for idx, (teacher, student) in enumerate(zip(zscore_norm_pitch_teacher, zscore_norm_pitch_student)):
         if not np.isnan(teacher) and not np.isnan(student):
-            distances_ts.append(align_ts_teacher[idx])
-            distances.append(abs(teacher - student))
+            pitch_diffs_ts.append(align_ts_teacher[idx])
+            pitch_diffs.append(teacher - student)
+
+    print(np.array(pitch_diffs_ts[1:]) - np.array(pitch_diffs_ts[:-1]))
+
+
+    distances = [abs(p) for p in pitch_diffs]
     mean_distance = np.mean(distances)
     print(f"Mean distance: {mean_distance:.2f} "
           f"(smaller means student speech is closer to teacher)")
@@ -180,8 +188,7 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
         plt.plot(align_ts_teacher, zscore_norm_pitch_student, 'g.')
         plt.title("Applying the same alignment on normalized pitch")
         plt.subplot(313)
-        plt.plot(distances_ts, distances, 'r.')
-        plt.title('Pitch "error"')
+        plot_pitch_errors(pitch_diffs_ts, pitch_diffs)
         plt.show(block=False)
 
         if not notebook:
