@@ -7,15 +7,9 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-import parselmouth
 import typer
-from dtw import dtw, rabinerJuangStepPattern
 
-from onsei.utils import cleanup_pitch_freq, \
-    plot_pitch_and_spectro, \
-    ts_sequences_to_index, replacing_zero_by_nan, \
-    znormed, plot_pitch_errors, segment_speech, plot_phonemes
-from onsei.vad import detect_voice_with_webrtcvad
+from onsei.utils import SpeechRecord
 
 app = typer.Typer()
 
@@ -25,36 +19,10 @@ def view(wav_filename: str, transcript: Optional[str] = None) -> None:
     """
     Visualize a recording
     """
-    # Load the wav file and retrieve the pitch and intensity using Praat bindings
-    snd = parselmouth.Sound(wav_filename)
-    pitch = snd.to_pitch()
-    pitch_freq = pitch.selected_array['frequency']
-    pitch_freq_filtered, mean_pitch_freq, std_pitch_freq = cleanup_pitch_freq(
-        pitch_freq)
-    intensity = snd.to_intensity()
-
-    # Run a simple voice detection algorithm to find where the speech starts and ends
-    # vad, begin_ts, end_ts = detect_voice_activity_from_pitch(pitch)
-    vad_ts, vad_is_speech, begin_ts, end_ts = detect_voice_with_webrtcvad(wav_filename)
-    print(f"Voice detected from {begin_ts}s to {end_ts}s")
-
-    phonemes = None
-    if transcript:
-        phonemes = segment_speech(wav_filename, transcript, begin_ts, end_ts)
-        print(f"Phonemes segmentation: {phonemes}")
+    record = SpeechRecord(wav_filename, transcript)
 
     plt.figure()
-    # plt.subplot(211)
-    plot_pitch_and_spectro(snd, pitch.xs(),
-                           pitch_freq_filtered,
-                           begin_ts=begin_ts, end_ts=end_ts,
-                           phonemes=phonemes)
-    # plt.subplot(212)
-    # draw_intensity(intensity)
-    # plt.plot(pitch.xs(), vad * pitch_freq)
-    # plt.plot(vad_ts, vad_is_speech)
-    # plt.xlim(pitch.xs()[0], pitch.xs()[-1])
-    # plt.title("VAD Teacher")
+    record.plot_pitch_and_spectro()
     plt.show()
 
 
@@ -68,125 +36,19 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
 
     print(f"Comparing {teacher_wav_filename} with {student_wav_filename}")
 
-    # Load the wav files and retrieve the pitch and intensity using Praat bindings
-    snd_teacher = parselmouth.Sound(teacher_wav_filename)
-    snd_student = parselmouth.Sound(student_wav_filename)
-
-    pitch_teacher = snd_teacher.to_pitch(time_step=0.02)
-    pitch_student = snd_student.to_pitch(time_step=0.02)
-
-    pitch_freq_teacher = pitch_teacher.selected_array['frequency']
-    pitch_freq_student = pitch_student.selected_array['frequency']
-
-    pitch_freq_teacher_filtered, mean_pitch_freq_teacher, std_pitch_freq_teacher = cleanup_pitch_freq(
-        pitch_freq_teacher)
-    pitch_freq_student_filtered, mean_pitch_freq_student, std_pitch_freq_student = cleanup_pitch_freq(
-        pitch_freq_student)
-
-    intensity_teacher = snd_teacher.to_intensity()
-    intensity_student = snd_student.to_intensity()
-
-    # Run a simple voice detection algorithm to find where the speech starts and ends
-    #vad_teacher, begin_ts_teacher, end_ts_teacher = detect_voice_activity_from_pitch(
-    #    pitch_teacher)
-    vad_ts_teacher, vad_is_speech_teacher, begin_ts_teacher, end_ts_teacher = detect_voice_with_webrtcvad(teacher_wav_filename)
-    begin_idx_teacher, end_idx_teacher = ts_sequences_to_index(
-        [begin_ts_teacher, end_ts_teacher], intensity_teacher.xs())
-
-    # vad_student, begin_ts_student, end_ts_student = detect_voice_activity_from_pitch(
-    #     pitch_student)
-    vad_ts_student, vad_is_speech_student, begin_ts_student, end_ts_student = detect_voice_with_webrtcvad(
-        student_wav_filename)
-    begin_idx_student, end_idx_student = ts_sequences_to_index(
-        [begin_ts_student, end_ts_student], intensity_student.xs())
-
-    phonemes_teacher = phonemes_student = None
-    if transcript:
-        phonemes_teacher = segment_speech(teacher_wav_filename, transcript,
-                                          begin_ts_teacher, end_ts_teacher)
-        print(f"Phonemes segmentation for teacher: {phonemes_teacher}")
-        phonemes_student = segment_speech(student_wav_filename, transcript,
-                                          begin_ts_student, end_ts_student)
-        print(f"Phonemes segmentation for student: {phonemes_student}")
+    teacher_rec = SpeechRecord(teacher_wav_filename, transcript, name="Teacher")
+    student_rec = SpeechRecord(student_wav_filename, transcript, name="Student")
 
     if show_graphs:
         plt.figure()
         plt.subplot(211)
-        plot_pitch_and_spectro(snd_teacher, pitch_teacher.xs(),
-                               pitch_freq_teacher_filtered, title="Teacher",
-                               begin_ts=begin_ts_teacher, end_ts=end_ts_teacher,
-                               phonemes=phonemes_teacher)
+        teacher_rec.plot_pitch_and_spectro()
         plt.subplot(212)
-        plot_pitch_and_spectro(snd_student, pitch_student.xs(),
-                               pitch_freq_student_filtered, title="Student",
-                               begin_ts=begin_ts_student, end_ts=end_ts_student,
-                               phonemes=phonemes_student)
+        student_rec.plot_pitch_and_spectro()
         plt.show(block=False)
 
-        # plt.figure()
-        # plt.subplot(211)
-        # draw_intensity(intensity_teacher)
-        # plt.plot(vad_ts_teacher,
-        #          vad_is_speech_teacher * np.max(intensity_teacher))
-        # # plt.plot(pitch_teacher.xs(),
-        # #          vad_teacher * np.max(intensity_teacher))
-        # plt.title("VAD Teacher")
-        # plt.subplot(212)
-        # draw_intensity(intensity_student)
-        # plt.plot(vad_ts_student,
-        #          vad_is_speech_student * np.max(intensity_student))
-        # # plt.plot(pitch_student.xs(),
-        # #          vad_student * np.max(intensity_student))
-        # plt.title("VAD Student")
-        # plt.show(block=False)
-
-    # Align speech sequence using a DTW on intensity
-
-    # x is the query (which we will "warp") and y the reference
-    x = znormed(intensity_student.values[0, begin_idx_student:end_idx_student])
-    y = znormed(intensity_teacher.values[0, begin_idx_teacher:end_idx_teacher])
-
-    # Align the Rabiner-Juang type VI-c unsmoothed recursion
-    # step_pattern = rabinerJuangStepPattern(6, "c", smoothed=True)
-    step_pattern = rabinerJuangStepPattern(4, "c", smoothed=True)
-    # step_pattern = "symmetric2"
-    align = dtw(x, y, keep_internals=True, step_pattern=step_pattern)
-    # align.plot(type="threeway")  # Display the warping curve, i.e. the alignment curve
-
-    # Timestamp for each point in the alignment
-    align_ts_student = intensity_student.xs()[begin_idx_student:end_idx_student][
-        align.index1]
-    align_ts_teacher = intensity_teacher.xs()[begin_idx_teacher:end_idx_teacher][
-        align.index2]
-
-    # Intensity and pitch computed by parselmouth do not have the same timestamps,
-    # so we mean to find the frames in the pitch signal using the aligned timestamps
-    align_idx_pitch_student = ts_sequences_to_index(align_ts_student,
-                                                    pitch_student.xs())
-    align_idx_pitch_teacher = ts_sequences_to_index(align_ts_teacher,
-                                                    pitch_teacher.xs())
-
-    # Align the pitch signals, using the same alignment as for intensity
-    aligned_pitch_teacher = replacing_zero_by_nan(
-        pitch_freq_teacher_filtered[align_idx_pitch_teacher])
-    aligned_pitch_student = replacing_zero_by_nan(
-        pitch_freq_student_filtered[align_idx_pitch_student])
-
-    # Compute a distance based on z-score normalized aligned pitches
-    zscore_norm_pitch_teacher = (aligned_pitch_teacher - mean_pitch_freq_teacher) \
-                                / std_pitch_freq_teacher
-    zscore_norm_pitch_student = (aligned_pitch_student - mean_pitch_freq_student) \
-                                / std_pitch_freq_student
-
-    pitch_diffs_ts = []
-    pitch_diffs = []
-    for idx, (teacher, student) in enumerate(zip(zscore_norm_pitch_teacher, zscore_norm_pitch_student)):
-        if not np.isnan(teacher) and not np.isnan(student):
-            pitch_diffs_ts.append(align_ts_teacher[idx])
-            pitch_diffs.append(teacher - student)
-
-    distances = [abs(p) for p in pitch_diffs]
-    mean_distance = np.mean(distances)
+    student_rec.align_with(teacher_rec)
+    mean_distance = student_rec.compare_pitch()
     print(f"Mean distance: {mean_distance:.2f} "
           f"(smaller means student speech is closer to teacher)")
 
@@ -194,19 +56,11 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
     if show_graphs:
         plt.figure()
         plt.subplot(311)
-        plt.plot(align_ts_teacher, y[align.index2], 'b-')
-        plt.plot(align_ts_teacher, x[align.index1], 'g-')
-        plt.title("Aligned student intensity (green) to match teacher (blue)")
+        student_rec.plot_aligned_intensities()
         plt.subplot(312)
-        # plt.plot(align_ts_teacher, aligned_pitch_teacher, 'b.')
-        # plt.plot(align_ts_teacher, aligned_pitch_student, 'g.')
-        plt.plot(align_ts_teacher, zscore_norm_pitch_teacher, 'b.')
-        plt.plot(align_ts_teacher, zscore_norm_pitch_student, 'g.')
-        plt.title("Applying the same alignment on normalized pitch")
+        student_rec.plot_aligned_pitches()
         plt.subplot(313)
-        plot_pitch_errors(pitch_diffs_ts, pitch_diffs)
-        if phonemes_teacher:
-            plot_phonemes(phonemes_teacher, y=0, color="black")
+        student_rec.plot_pitch_errors()
         plt.show(block=False)
 
         if not notebook:
@@ -287,16 +141,6 @@ def benchmark(teacher_base_folder: str, student_base_folder: str,
         }
         with open(stats_filepath, 'a') as f:
             f.write(json.dumps(stats))
-
-
-@app.command()
-def segment(wav_filename: str, transcript: str):
-    """
-    Find the phonemes using the audio file and a transcript in hiragana.
-    """
-    result = segment_speech(wav_filename, transcript)
-    for begintime, endtime, unit in result:
-        print("{:.7f} {:.7f} {}".format(begintime, endtime, unit))
 
 
 if __name__ == "__main__":

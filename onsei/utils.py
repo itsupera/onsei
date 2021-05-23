@@ -1,12 +1,180 @@
 import contextlib
 import os
 import tempfile
+from functools import cached_property
 from typing import List, Tuple, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import parselmouth
 import sox
+from dtw import dtw, rabinerJuangStepPattern
+
+from onsei.vad import detect_voice_with_webrtcvad
+
+PITCH_TIME_STEP = 0.02
+MINIMUM_PITCH = 100.0
+
+
+class SpeechRecord:
+
+    def __init__(
+        self,
+        wav_filename: str,
+        transcript: Optional[str] = None,
+        name: Optional[str] = None,
+    ):
+        self.wav_filename = wav_filename
+        self.transcript = transcript
+        self.name = name
+
+        self.snd = parselmouth.Sound(self.wav_filename)
+        if self.snd.sampling_frequency != 16000:
+            print(f"Sampling frequency should be 16kHz, "
+                  f"not {self.snd.sampling_frequency}Hz !")
+        if self.snd.n_channels != 1:
+            print(f"Should only have 1 audio channel, not {self.snd.n_channels} !")
+
+        self.pitch = self.snd.to_pitch(time_step=PITCH_TIME_STEP)
+        self.pitch_freq = self.pitch.selected_array['frequency']
+        self.pitch_freq_filtered, self.mean_pitch_freq, self.std_pitch_freq = \
+            cleanup_pitch_freq(self.pitch_freq)
+
+        self.intensity = self.snd.to_intensity(MINIMUM_PITCH)
+
+        # Run a simple voice detection algorithm to find
+        # where the speech starts and ends
+        self.vad_ts, self.vad_is_speech, self.begin_ts, self.end_ts = \
+            detect_voice_with_webrtcvad(self.wav_filename)
+        self.begin_idx, self.end_idx = ts_sequences_to_index(
+            [self.begin_ts, self.end_ts],
+            self.intensity.xs()
+            )
+        print(f"Voice detected from {self.begin_ts}s to {self.end_ts}s")
+
+        self.phonemes = None
+        if self.transcript:
+            self.phonemes = segment_speech(self.wav_filename, self.transcript,
+                                           self.begin_ts, self.end_ts)
+            print(f"Phonemes segmentation for teacher: {self.phonemes}")
+
+        # Initialize alignment related attributes
+        self.ref_rec = None
+        self.align_ts = None
+        self.align_index = None
+        self.pitch_diffs_ts = None
+        self.pitch_diffs = None
+
+    def plot_pitch_and_spectro(
+        self,
+        window_length=0.03,
+        maximum_frequency=500,
+        time_step=0.01,
+        frequency_step=10.0,
+        plot_maximum_frequency=500,
+    ):
+        title = self.name if self.name else None
+
+        # If desired, pre-emphasize the sound fragment
+        # before calculating the spectrogram
+        pre_emphasized_snd = self.snd.copy()
+        pre_emphasized_snd.pre_emphasize()
+        spectrogram = pre_emphasized_snd.to_spectrogram(
+            window_length=window_length,
+            maximum_frequency=maximum_frequency,
+            time_step=time_step,
+            frequency_step=frequency_step
+        )
+        draw_spectrogram(spectrogram, maximum_frequency=plot_maximum_frequency)
+
+        pitch_ts = self.pitch.xs()
+        y = self.pitch_freq_filtered.copy()
+        y[y == 0] = np.nan
+        plt.plot(pitch_ts, y, 'o', markersize=5, color='w')
+        plt.plot(pitch_ts, y, 'o', markersize=2)
+        plt.ylim(0, plot_maximum_frequency)
+        plt.ylabel("fundamental frequency [Hz]")
+
+        plt.twinx()
+        draw_intensity(self.intensity)
+
+        xmin = self.snd.xmin if self.begin_ts is None else self.begin_ts
+        xmax = self.snd.xmax if self.end_ts is None else self.end_ts
+
+        if self.phonemes:
+            plot_phonemes(self.phonemes, xmin=xmin, xmax=xmax)
+
+        plt.xlim([xmin, xmax])
+
+        if title:
+            plt.title(title)
+
+    def align_with(self, ref_rec: "SpeechRecord"):
+        self.ref_rec = ref_rec
+
+        # Aliases for clarity
+        student_rec = self
+        teacher_rec = ref_rec
+
+        # x is the query (which we will "warp") and y the reference
+        x = student_rec.znormed_intensity
+        y = teacher_rec.znormed_intensity
+        step_pattern = rabinerJuangStepPattern(4, "c", smoothed=True)
+        align = dtw(x, y, keep_internals=True, step_pattern=step_pattern)
+
+        student_rec.align_index = align.index1
+        teacher_rec.align_index = align.index2
+
+        # Timestamp for each point in the alignment
+        student_rec.align_ts = student_rec.intensity.xs()[
+                               student_rec.begin_idx:student_rec.end_idx][align.index1]
+        teacher_rec.align_ts = teacher_rec.intensity.xs()[
+                               teacher_rec.begin_idx:teacher_rec.end_idx][align.index2]
+
+    @cached_property
+    def znormed_intensity(self):
+        return znormed(
+            self.intensity.values[0, self.begin_idx:self.end_idx])
+
+    @cached_property
+    def norm_aligned_pitch(self):
+        # Intensity and pitch computed by parselmouth do not have the same timestamps,
+        # so we mean to find the frames in the pitch signal using the aligned timestamps
+        align_idx_pitch = ts_sequences_to_index(self.align_ts, self.pitch.xs())
+        pitch = replacing_zero_by_nan(self.pitch_freq_filtered[align_idx_pitch])
+        return (pitch - self.mean_pitch_freq) / self.std_pitch_freq
+
+    def compare_pitch(self):
+        self.pitch_diffs_ts = []
+        self.pitch_diffs = []
+        for idx, (teacher, student) in enumerate(
+                zip(self.ref_rec.norm_aligned_pitch, self.norm_aligned_pitch)):
+            if not np.isnan(teacher) and not np.isnan(student):
+                self.pitch_diffs_ts.append(self.ref_rec.align_ts[idx])
+                self.pitch_diffs.append(teacher - student)
+
+        distances = [abs(p) for p in self.pitch_diffs]
+        mean_distance = np.mean(distances)
+        return mean_distance
+
+    def plot_aligned_intensities(self):
+        plt.plot(self.ref_rec.align_ts,
+                 self.ref_rec.znormed_intensity[self.ref_rec.align_index],
+                 'b-')
+        plt.plot(self.ref_rec.align_ts,
+                 self.znormed_intensity[self.align_index],
+                 'g-')
+        plt.title("Aligned student intensity (green) to match teacher (blue)")
+
+    def plot_aligned_pitches(self):
+        plt.plot(self.ref_rec.align_ts, self.ref_rec.norm_aligned_pitch, 'b.')
+        plt.plot(self.ref_rec.align_ts, self.norm_aligned_pitch, 'g.')
+        plt.title("Applying the same alignment on normalized pitch")
+
+    def plot_pitch_errors(self):
+        plot_pitch_errors(self.pitch_diffs_ts, self.pitch_diffs)
+        if self.ref_rec.phonemes:
+            plot_phonemes(self.ref_rec.phonemes, y=0, color="black")
 
 
 def draw_spectrogram(spectrogram, dynamic_range=70, maximum_frequency=None):
@@ -41,27 +209,6 @@ def draw_pitch(pitch: parselmouth.Pitch, maximum_frequency=None):
     plt.ylabel("fundamental frequency [Hz]")
 
 
-def draw_spec_pitch(snd: parselmouth.Sound, window_length=0.03, maximum_frequency=500,
-                    time_step=0.002, frequency_step=20.0):
-    pitch = snd.to_pitch()
-    # If desired, pre-emphasize the sound fragment before calculating the spectrogram
-    pre_emphasized_snd = snd.copy()
-    pre_emphasized_snd.pre_emphasize()
-    spectrogram = pre_emphasized_snd.to_spectrogram(window_length=window_length,
-                                                    maximum_frequency=maximum_frequency,
-                                                    time_step=time_step,
-                                                    frequency_step=frequency_step)
-    plt.figure()
-    draw_spectrogram(spectrogram)
-    plt.twinx()
-    draw_pitch(pitch, maximum_frequency)
-    plt.xlim([snd.xmin, snd.xmax])
-    plt.show()  # or plt.savefig("spectrogram_0.03.pdf")
-
-
-# draw_spec_pitch(snd, window_length=0.03, maximum_frequency=500, time_step=0.01, frequency_step=10.0)
-
-
 def cleanup_pitch_freq(pitch_sig):
     """
     Remove some outliers from the pitch frequencies
@@ -90,64 +237,12 @@ def cleanup_pitch_freq(pitch_sig):
     return new_sig, mean, std
 
 
-def plot_pitch_and_spectro(
-        snd: parselmouth.Sound,
-        pitch_ts: np.ndarray,
-        pitch_freq_filtered: np.ndarray,
-        window_length=0.03,
-        maximum_frequency=500,
-        time_step=0.01,
-        frequency_step=10.0,
-        plot_maximum_frequency=500,
-        title=None,
-        begin_ts=None,
-        end_ts=None,
-        phonemes=None,
-        ):
-    # If desired, pre-emphasize the sound fragment before calculating the spectrogram
-    pre_emphasized_snd = snd.copy()
-    pre_emphasized_snd.pre_emphasize()
-    spectrogram = pre_emphasized_snd.to_spectrogram(window_length=window_length,
-                                                    maximum_frequency=maximum_frequency,
-                                                    time_step=time_step,
-                                                    frequency_step=frequency_step)
-    draw_spectrogram(spectrogram, maximum_frequency=plot_maximum_frequency)
-
-    y = pitch_freq_filtered.copy()
-    y[y == 0] = np.nan
-    plt.plot(pitch_ts, y, 'o', markersize=5, color='w')
-    plt.plot(pitch_ts, y, 'o', markersize=2)
-    plt.ylim(0, plot_maximum_frequency)
-    plt.ylabel("fundamental frequency [Hz]")
-
-    plt.twinx()
-    intensity = snd.to_intensity()
-    draw_intensity(intensity)
-
-    xmin = snd.xmin if begin_ts is None else begin_ts
-    xmax = snd.xmax if end_ts is None else end_ts
-
-    if phonemes:
-        plot_phonemes(phonemes, xmin=xmin, xmax=xmax)
-
-    # if phonemes:
-    #     phonemes_xmin, _, _ = phonemes[0]
-    #     _, phonemes_xmax, _ = phonemes[-1]
-    #     xmin = min(xmin, phonemes_xmin)
-    #     xmax = min(xmax, phonemes_xmax)
-
-    plt.xlim([xmin, xmax])
-
-    if title:
-        plt.title(title)
-
-
 def plot_phonemes(
-    phonemes: List[Tuple[float, float, str]],
-    y: float = 10,
-    color: str = 'white',
-    xmin: Optional[float] = None,
-    xmax: Optional[float] = None,
+        phonemes: List[Tuple[float, float, str]],
+        y: float = 10,
+        color: str = 'white',
+        xmin: Optional[float] = None,
+        xmax: Optional[float] = None,
 ):
     # Setup font configuration of matplotlib to plot Japanese text
     # from matplotlib import rcParams
@@ -159,13 +254,20 @@ def plot_phonemes(
     font_dict = {
         'color': color,
         'size': 24,
-    }
+        }
     sep_font_dict = {
         'color': 'gray',
         'size': 24,
-    }
-    def is_within_xlims(ts):
-        return (xmin is None or ts >= xmin) and (xmax is None or ts <= xmax)
+        }
+
+    plt_xmin, plt_xmax = plt.xlim()
+    if xmin is None:
+        xmin = plt_xmin
+    if xmin is None:
+        xmax = plt_xmax
+
+    def is_within_xlims(x):
+        return (xmin is None or x >= xmin) and (xmax is None or x <= xmax)
 
     for pho_beg, pho_end, pho in phonemes:
         ts = pho_beg + (pho_end - pho_beg) / 2
@@ -249,11 +351,11 @@ def plot_pitch_errors(pitch_diffs_ts, pitch_diffs):
 
 
 def segment_speech(
-    wav_filename: str,
-    transcript: str,
-    begin_ts: float,
-    end_ts: float,
-) -> List[Tuple[float, float, str]]:
+        wav_filename: str,
+        transcript: str,
+        begin_ts: float,
+        end_ts: float,
+        ) -> List[Tuple[float, float, str]]:
     """
     Find the phonemes using the audio file and a transcript in hiragana.
     Return the start time, end time and phoneme for each detected phoneme.
@@ -263,8 +365,8 @@ def segment_speech(
     # PySegmentKit expects the audio and transcript to be under the same directory,
     # so we copy / create temporary files to handle this.
     with tempfile.TemporaryDirectory() as tmpdir:
-
-        save_cropped_audio(wav_filename, os.path.join(tmpdir, "tmp.wav"), begin_ts, end_ts)
+        save_cropped_audio(wav_filename, os.path.join(tmpdir, "tmp.wav"), begin_ts,
+                           end_ts)
 
         with open(os.path.join(tmpdir, "tmp.txt"), "w") as f:
             f.write(transcript)
