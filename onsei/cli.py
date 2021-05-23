@@ -13,15 +13,15 @@ from dtw import dtw, rabinerJuangStepPattern
 
 from onsei.utils import cleanup_pitch_freq, \
     plot_pitch_and_spectro, \
-    draw_intensity, ts_sequences_to_index, replacing_zero_by_nan, \
-    znormed, plot_pitch_errors
+    ts_sequences_to_index, replacing_zero_by_nan, \
+    znormed, plot_pitch_errors, segment_speech, plot_phonemes
 from onsei.vad import detect_voice_with_webrtcvad
 
 app = typer.Typer()
 
 
 @app.command()
-def view(wav_filename: str) -> None:
+def view(wav_filename: str, transcript: Optional[str] = None) -> None:
     """
     Visualize a recording
     """
@@ -36,24 +36,32 @@ def view(wav_filename: str) -> None:
     # Run a simple voice detection algorithm to find where the speech starts and ends
     # vad, begin_ts, end_ts = detect_voice_activity_from_pitch(pitch)
     vad_ts, vad_is_speech, begin_ts, end_ts = detect_voice_with_webrtcvad(wav_filename)
+    print(f"Voice detected from {begin_ts}s to {end_ts}s")
+
+    phonemes = None
+    if transcript:
+        phonemes = segment_speech(wav_filename, transcript, begin_ts, end_ts)
+        print(f"Phonemes segmentation: {phonemes}")
 
     plt.figure()
-    plt.subplot(211)
+    # plt.subplot(211)
     plot_pitch_and_spectro(snd, pitch.xs(),
                            pitch_freq_filtered,
-                           begin_ts=begin_ts, end_ts=end_ts)
-    plt.subplot(212)
+                           begin_ts=begin_ts, end_ts=end_ts,
+                           phonemes=phonemes)
+    # plt.subplot(212)
     # draw_intensity(intensity)
     # plt.plot(pitch.xs(), vad * pitch_freq)
-    plt.plot(vad_ts, vad_is_speech)
-    plt.xlim(pitch.xs()[0], pitch.xs()[-1])
-    plt.title("VAD Teacher")
+    # plt.plot(vad_ts, vad_is_speech)
+    # plt.xlim(pitch.xs()[0], pitch.xs()[-1])
+    # plt.title("VAD Teacher")
     plt.show()
 
 
 @app.command()
 def compare(teacher_wav_filename: str, student_wav_filename: str,
-            show_graphs: bool = True, notebook: bool = False) -> float:
+            show_graphs: bool = True, notebook: bool = False,
+            transcript: Optional[str] = None) -> float:
     """
     Compare a teacher and student recording of the same sentence
     """
@@ -92,16 +100,27 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
     begin_idx_student, end_idx_student = ts_sequences_to_index(
         [begin_ts_student, end_ts_student], intensity_student.xs())
 
+    phonemes_teacher = phonemes_student = None
+    if transcript:
+        phonemes_teacher = segment_speech(teacher_wav_filename, transcript,
+                                          begin_ts_teacher, end_ts_teacher)
+        print(f"Phonemes segmentation for teacher: {phonemes_teacher}")
+        phonemes_student = segment_speech(student_wav_filename, transcript,
+                                          begin_ts_student, end_ts_student)
+        print(f"Phonemes segmentation for student: {phonemes_student}")
+
     if show_graphs:
         plt.figure()
         plt.subplot(211)
         plot_pitch_and_spectro(snd_teacher, pitch_teacher.xs(),
                                pitch_freq_teacher_filtered, title="Teacher",
-                               begin_ts=begin_ts_teacher, end_ts=end_ts_teacher)
+                               begin_ts=begin_ts_teacher, end_ts=end_ts_teacher,
+                               phonemes=phonemes_teacher)
         plt.subplot(212)
         plot_pitch_and_spectro(snd_student, pitch_student.xs(),
                                pitch_freq_student_filtered, title="Student",
-                               begin_ts=begin_ts_student, end_ts=end_ts_student)
+                               begin_ts=begin_ts_student, end_ts=end_ts_student,
+                               phonemes=phonemes_student)
         plt.show(block=False)
 
         # plt.figure()
@@ -166,9 +185,6 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
             pitch_diffs_ts.append(align_ts_teacher[idx])
             pitch_diffs.append(teacher - student)
 
-    print(np.array(pitch_diffs_ts[1:]) - np.array(pitch_diffs_ts[:-1]))
-
-
     distances = [abs(p) for p in pitch_diffs]
     mean_distance = np.mean(distances)
     print(f"Mean distance: {mean_distance:.2f} "
@@ -189,6 +205,8 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
         plt.title("Applying the same alignment on normalized pitch")
         plt.subplot(313)
         plot_pitch_errors(pitch_diffs_ts, pitch_diffs)
+        if phonemes_teacher:
+            plot_phonemes(phonemes_teacher, y=0, color="black")
         plt.show(block=False)
 
         if not notebook:
@@ -269,6 +287,16 @@ def benchmark(teacher_base_folder: str, student_base_folder: str,
         }
         with open(stats_filepath, 'a') as f:
             f.write(json.dumps(stats))
+
+
+@app.command()
+def segment(wav_filename: str, transcript: str):
+    """
+    Find the phonemes using the audio file and a transcript in hiragana.
+    """
+    result = segment_speech(wav_filename, transcript)
+    for begintime, endtime, unit in result:
+        print("{:.7f} {:.7f} {}".format(begintime, endtime, unit))
 
 
 if __name__ == "__main__":

@@ -43,7 +43,7 @@ docker build -t onsei .
 docker run -p 8888:8888 -e JUPYTER_ENABLE_LAB=yes -v "$PWD":/home/jovyan/work onsei:latest
 ```
 Open the notebook in your browser:
-http://127.0.0.1:8888/lab/workspaces/auto-V/tree/work/notebook.ipynb
+http://127.0.0.1:8888/lab/tree/work/notebook.ipynb
 
 Alternatively, it should work with `jupyter-repo2docker`
 ```bash
@@ -63,6 +63,14 @@ pip3 install -r requirements.txt
 Running
 --------
 
+### Visualize a recording
+
+```bash
+python3 -m onsei.cli view \
+    "data/ps/ps1_boku_no_chijin-teacher2.wav" \
+    --transcript "ぼくのちじんのけいえいしゃに"
+```
+
 ### Comparing teacher and student recordings
 
 The following script compares teacher and student recordings of the same sentence,
@@ -77,14 +85,20 @@ The sample recordings are:
 
 First comparing the mispronounced sentence with the teacher's:
 ```bash
-python3 -m onsei.cli compare data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student1.wav
+python3 -m onsei.cli compare \
+    data/ps/ps1_boku_no_chijin-teacher2.wav \
+    data/ps/ps1_boku_no_chijin-student1.wav \
+    --transcript "ぼくのちじんのけいえいしゃに"
 # Mean distance: 1.21 (smaller means student speech is closer to teacher)
 ```
 ![Graphs for the "bad" student](graphs_bad_student.png)
 
 Then comparing the rectified sentence with the teacher's:
 ```bash
-python3 -m onsei.cli compare data/ps/ps1_boku_no_chijin-teacher2.wav data/ps/ps1_boku_no_chijin-student3.wav
+python3 -m onsei.cli compare \
+    data/ps/ps1_boku_no_chijin-teacher2.wav \
+    data/ps/ps1_boku_no_chijin-student3.wav \
+    --transcript "ぼくのちじんのけいえいしゃに"
 # Mean distance: 0.57 (smaller means student speech is closer to teacher)
 ```
 ![Graphs for the "good" student](graphs_good_student.png)

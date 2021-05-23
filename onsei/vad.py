@@ -6,7 +6,6 @@ import collections
 import contextlib
 import os
 import sys
-import tempfile
 import wave
 
 import numpy as np
@@ -136,35 +135,38 @@ def vad_collector(sample_rate, frame_duration_ms,
 
 
 def detect_voice_with_webrtcvad(wav_filename: str) -> tuple:
-    # To make sure the WAV filename matches webrtcvad constraints,
-    # use SOX to convert to file into a temporary storage
-    with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-        import sox
-        tfm = sox.Transformer()
-        tfm.rate(48000)
-        tfm.channels(1)
+    audio, sample_rate = read_wave(wav_filename)
+    vad = webrtcvad.Vad(3)
+    frame_duration_ms = 10
+    frames = frame_generator(frame_duration_ms, audio, sample_rate)
+    frames = list(frames)
 
-        # Hide the warnings, a bit ugly but setting SOX's verbosity did not work
-        with open(os.devnull, "w") as g, contextlib.redirect_stderr(g):
-            tfm.build_file(wav_filename, f.name)
+    vad_ts = []
+    vad_is_speech = []
+    for frame in frames:
+        vad_ts.append(frame.timestamp)
+        is_speech = vad.is_speech(frame.bytes, sample_rate)
+        vad_is_speech.append(is_speech)
+    vad_is_speech = np.array(vad_is_speech)
 
-        f.seek(0)
-        audio, sample_rate = read_wave(f.name)
-        vad = webrtcvad.Vad(3)
-        frame_duration_ms = 10
-        padding_duration_ms = 300
-        frames = frame_generator(frame_duration_ms, audio, sample_rate)
-        frames = list(frames)
+    begin_idx, end_idx = vad_is_speech.argmax(), len(vad_is_speech) - vad_is_speech[::-1].argmax() - 1
 
-        vad_ts = []
-        vad_is_speech = []
-        for frame in frames:
-            vad_ts.append(frame.timestamp)
-            is_speech = vad.is_speech(frame.bytes, sample_rate)
-            vad_is_speech.append(is_speech)
-        vad_is_speech = np.array(vad_is_speech)
+    # Add a little bit of margin at the beginning, because often the first mora
+    # gets cropped and it impacts phonemes segmentation
+    # begin_margin_ms = 50
+    # begin_margin_nb_frames = int(begin_margin_ms / frame_duration_ms)
+    # begin_idx = max(0, begin_idx - begin_margin_nb_frames)
 
-        begin_idx, end_idx = vad_is_speech.argmax(), len(vad_is_speech) - vad_is_speech[::-1].argmax() - 1
-        begin_ts, end_ts = vad_ts[begin_idx], vad_ts[end_idx]
+    begin_ts, end_ts = vad_ts[begin_idx], vad_ts[end_idx]
 
-        return vad_ts, vad_is_speech, begin_ts, end_ts
+    return vad_ts, vad_is_speech, begin_ts, end_ts
+
+
+def convert_audio(wav_filename, tmp_filename):
+    import sox
+    tfm = sox.Transformer()
+    tfm.rate(16000)
+    tfm.channels(1)
+    # Hide the warnings, a bit ugly but setting SOX's verbosity did not work
+    with open(os.devnull, "w") as g, contextlib.redirect_stderr(g):
+        tfm.build_file(wav_filename, tmp_filename)
