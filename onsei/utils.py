@@ -1,4 +1,5 @@
 import contextlib
+import logging
 import os
 import tempfile
 from functools import cached_property
@@ -8,12 +9,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import parselmouth
 import sox
-from dtw import dtw, rabinerJuangStepPattern
+
+# Hide prints
+with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
+    from dtw import dtw, rabinerJuangStepPattern
 
 from onsei.vad import detect_voice_with_webrtcvad
 
 PITCH_TIME_STEP = 0.02
 MINIMUM_PITCH = 100.0
+
+
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
 
 class SpeechRecord:
@@ -30,13 +38,17 @@ class SpeechRecord:
 
         self.snd = parselmouth.Sound(self.wav_filename)
         if self.snd.sampling_frequency != 16000:
-            print(f"Sampling frequency should be 16kHz, "
-                  f"not {self.snd.sampling_frequency}Hz !")
+            raise ValueError(f"Sampling frequency should be 16kHz, "
+                             f"not {self.snd.sampling_frequency}Hz !")
         if self.snd.n_channels != 1:
-            print(f"Should only have 1 audio channel, not {self.snd.n_channels} !")
+            raise ValueError(f"Should only have 1 audio channel, "
+                             f"not {self.snd.n_channels} !")
 
         self.pitch = self.snd.to_pitch(time_step=PITCH_TIME_STEP)
+
         self.pitch_freq = self.pitch.selected_array['frequency']
+        self.pitch_freq[self.pitch_freq == 0] = np.nan
+
         self.pitch_freq_filtered, self.mean_pitch_freq, self.std_pitch_freq = \
             cleanup_pitch_freq(self.pitch_freq)
 
@@ -50,13 +62,13 @@ class SpeechRecord:
             [self.begin_ts, self.end_ts],
             self.intensity.xs()
             )
-        print(f"Voice detected from {self.begin_ts}s to {self.end_ts}s")
+        logging.debug(f"Voice detected from {self.begin_ts}s to {self.end_ts}s")
 
         self.phonemes = None
         if self.transcript:
             self.phonemes = segment_speech(self.wav_filename, self.transcript,
                                            self.begin_ts, self.end_ts)
-            print(f"Phonemes segmentation for teacher: {self.phonemes}")
+            logging.debug(f"Phonemes segmentation for teacher: {self.phonemes}")
 
         # Initialize alignment related attributes
         self.ref_rec = None
@@ -137,12 +149,16 @@ class SpeechRecord:
             self.intensity.values[0, self.begin_idx:self.end_idx])
 
     @cached_property
-    def norm_aligned_pitch(self):
+    def aligned_pitch(self):
         # Intensity and pitch computed by parselmouth do not have the same timestamps,
         # so we mean to find the frames in the pitch signal using the aligned timestamps
         align_idx_pitch = ts_sequences_to_index(self.align_ts, self.pitch.xs())
-        pitch = replacing_zero_by_nan(self.pitch_freq_filtered[align_idx_pitch])
-        return (pitch - self.mean_pitch_freq) / self.std_pitch_freq
+        pitch = self.pitch_freq_filtered[align_idx_pitch]
+        return pitch
+
+    @cached_property
+    def norm_aligned_pitch(self):
+        return (self.aligned_pitch - self.mean_pitch_freq) / self.std_pitch_freq
 
     def compare_pitch(self):
         self.pitch_diffs_ts = []
@@ -209,30 +225,26 @@ def draw_pitch(pitch: parselmouth.Pitch, maximum_frequency=None):
     plt.ylabel("fundamental frequency [Hz]")
 
 
-def cleanup_pitch_freq(pitch_sig):
+def cleanup_pitch_freq(pitch_freq):
     """
     Remove some outliers from the pitch frequencies
     """
-    valid_freqs = pitch_sig[pitch_sig != 0]
-    mean = np.mean(valid_freqs)
-    std = np.std(valid_freqs)
+    mean = np.nanmean(pitch_freq)
+    std = np.nanstd(pitch_freq)
 
     min_cut = mean - std * 2.5
     max_cut = mean + std * 2.5
-    print(f"Pitch frequencies cleanup: mean is {mean:.2f} Hz, "
-          f"keeping values within [{min_cut:.2f} Hz, {max_cut:.2f} Hz]")
+    logging.debug(f"Pitch frequencies cleanup: mean is {mean:.2f} Hz, "
+                  f"keeping values within [{min_cut:.2f} Hz, {max_cut:.2f} Hz]")
 
     new_sig = []
-    for x in pitch_sig:
-        if x == 0 or (min_cut <= x <= max_cut):
+    for x in pitch_freq:
+        if not np.isnan(x) and (min_cut <= x <= max_cut):
             new_sig.append(x)
         else:
-            new_sig.append(0)
+            new_sig.append(np.nan)
 
     new_sig = np.array(new_sig)
-
-    # Normalize
-    # new_sig = (new_sig - min(new_sig)) / (max(new_sig) - min(new_sig))
 
     return new_sig, mean, std
 
@@ -290,16 +302,16 @@ def get_noise_from_intensity(intensity: parselmouth.Intensity) -> float:
     for x, y in zip(xs, intensity.values[0, :]):
         if x < ts_noise or x > duration - ts_noise:
             samples.append(y)
-    print(f"Computing noise level using {len(samples)} samples")
+    logging.debug(f"Computing noise level using {len(samples)} samples")
     return np.mean(samples)
 
 
 def detect_voice_activity_from_intensity(intensity: parselmouth.Intensity) -> tuple:
     noise = get_noise_from_intensity(intensity)
-    print(f"Noise level: {noise:.2f} dB")
+    logging.debug(f"Noise level: {noise:.2f} dB")
     sig = intensity.values[0, :]
     mean = np.mean(sig)
-    print(f"Mean volume: {mean:.2f} dB")
+    logging.debug(f"Mean volume: {mean:.2f} dB")
     vad = np.array(
         [(1.0 if x > (noise + ((mean - noise) / 1.5)) else 0.0) for x in sig])
     begin_idx, end_idx = vad.argmax(), len(vad) - vad[::-1].argmax() - 1
@@ -312,7 +324,7 @@ def detect_voice_activity_from_pitch(pitch: parselmouth.Pitch):
     vad = pitch_freq > 0
     begin_idx, end_idx = vad.argmax(), len(vad) - vad[::-1].argmax() - 1
     begin_ts, end_ts = pitch.xs()[begin_idx], pitch.xs()[end_idx]
-    print(f"Voice detected between {begin_ts:.2f}s and {end_ts:.2f}s")
+    logging.debug(f"Voice detected between {begin_ts:.2f}s and {end_ts:.2f}s")
     return vad, begin_ts, end_ts
 
 
