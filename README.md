@@ -9,6 +9,27 @@ speaker's recording.
 
 **PLEASE NOTE THAT THIS IS AN EXPERIMENTAL WORK IN PROGRESS !**
 
+How to play with it
+--------------------
+
+- [Click here](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?filepath=work%2Fnotebook.ipynb)
+to deploy it with Binder.
+
+- Wait until the Jupyter notebook is loaded (This can take a few minutes)
+
+- Click on the "Execute" button to generate the user interface
+  
+- Scroll down the page to see the user interface
+
+- Play the teacher's record of the sample sentence
+  
+- Record yourself mimicking them using the record button below "Your recording:"
+
+- Click the "Compare" button to update the pitch comparison graph below
+
+- Try again to match the teacher's pitch !
+
+
 Methodology
 ------------
 
