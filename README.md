@@ -2,6 +2,7 @@ Onsei: Tool to automatically evaluate pitch accent accuracy in Japanese
 ========================================================================
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?filepath=work%2Fnotebook.ipynb)
+[![Gitter](https://badges.gitter.im/itsupera-onsei/community.svg)](https://gitter.im/itsupera-onsei/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 This project aims at creating tools to automatically assess the pitch accent accuracy
 of a Japanese language learner, by comparing a spoken sentence with a native
