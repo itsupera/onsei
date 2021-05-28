@@ -15,11 +15,11 @@ app = typer.Typer()
 
 
 @app.command()
-def view(wav_filename: str, transcript: Optional[str] = None) -> None:
+def view(wav_filename: str, sentence: Optional[str] = None) -> None:
     """
     Visualize a recording
     """
-    record = SpeechRecord(wav_filename, transcript)
+    record = SpeechRecord(wav_filename, sentence)
 
     plt.figure()
     record.plot_pitch_and_spectro()
@@ -29,15 +29,15 @@ def view(wav_filename: str, transcript: Optional[str] = None) -> None:
 @app.command()
 def compare(teacher_wav_filename: str, student_wav_filename: str,
             show_graphs: bool = True, notebook: bool = False,
-            transcript: Optional[str] = None) -> float:
+            sentence: Optional[str] = None) -> float:
     """
     Compare a teacher and student recording of the same sentence
     """
 
     print(f"Comparing {teacher_wav_filename} with {student_wav_filename}")
 
-    teacher_rec = SpeechRecord(teacher_wav_filename, transcript, name="Teacher")
-    student_rec = SpeechRecord(student_wav_filename, transcript, name="Student")
+    teacher_rec = SpeechRecord(teacher_wav_filename, sentence, name="Teacher")
+    student_rec = SpeechRecord(student_wav_filename, sentence, name="Student")
 
     if show_graphs:
         plt.figure()

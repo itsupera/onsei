@@ -5,10 +5,13 @@ import tempfile
 from functools import cached_property
 from typing import List, Tuple, Optional
 
+import MeCab
 import matplotlib.pyplot as plt
 import numpy as np
 import parselmouth
 import sox
+from PySegmentKit import PySegmentKit
+from pyjuliusalign.juliusAlignment import formatTextForJulius
 
 # Hide prints
 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
@@ -18,6 +21,9 @@ from onsei.vad import detect_voice_with_webrtcvad
 
 PITCH_TIME_STEP = 0.02
 MINIMUM_PITCH = 100.0
+
+CABOCHA_PATH = os.environ.get("CABOCHA_PATH", "/usr/local/bin/cabocha")
+CABOCHA_ENCODING = os.environ.get("CABOCHA_ENCODING", "utf-8")
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -29,12 +35,14 @@ class SpeechRecord:
     def __init__(
         self,
         wav_filename: str,
-        transcript: Optional[str] = None,
+        sentence: Optional[str] = None,
         name: Optional[str] = None,
     ):
         self.wav_filename = wav_filename
-        self.transcript = transcript
+        self.sentence = sentence
         self.name = name
+
+        self.transcript = generate_transcript(self.sentence)
 
         self.snd = parselmouth.Sound(self.wav_filename)
         if self.snd.sampling_frequency != 16000:
@@ -362,6 +370,15 @@ def plot_pitch_errors(pitch_diffs_ts, pitch_diffs):
     plt.title('Pitch "error"')
 
 
+def generate_transcript(sentence: str) -> str:
+    dataPrepTuple = formatTextForJulius(sentence, CABOCHA_ENCODING, CABOCHA_PATH)
+    line, tmpWordList, tmpKanaList, tmpRomajiList, \
+    unidentifiedUtterance, unnamedEntity, tmpWordCount = dataPrepTuple
+
+    # e.g., "m i z u o m a r e: sh i a k a r a k a w a n a k u t e w a n a r a n a i"
+    return tmpRomajiList.replace(',', ' ')
+
+
 def segment_speech(
         wav_filename: str,
         transcript: str,
@@ -372,8 +389,6 @@ def segment_speech(
     Find the phonemes using the audio file and a transcript in hiragana.
     Return the start time, end time and phoneme for each detected phoneme.
     """
-    from PySegmentKit import PySegmentKit
-
     # PySegmentKit expects the audio and transcript to be under the same directory,
     # so we copy / create temporary files to handle this.
     with tempfile.TemporaryDirectory() as tmpdir:
