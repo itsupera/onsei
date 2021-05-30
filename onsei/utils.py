@@ -28,6 +28,7 @@ CABOCHA_ENCODING = os.environ.get("CABOCHA_ENCODING", "utf-8")
 
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("sox").setLevel(logging.ERROR)
 
 
 class SpeechRecord:
