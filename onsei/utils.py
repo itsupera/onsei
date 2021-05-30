@@ -5,7 +5,6 @@ import tempfile
 from functools import cached_property
 from typing import List, Tuple, Optional
 
-import MeCab
 import matplotlib.pyplot as plt
 import numpy as np
 import parselmouth
@@ -26,7 +25,7 @@ CABOCHA_PATH = os.environ.get("CABOCHA_PATH", "/usr/local/bin/cabocha")
 CABOCHA_ENCODING = os.environ.get("CABOCHA_ENCODING", "utf-8")
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("sox").setLevel(logging.ERROR)
 
