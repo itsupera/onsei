@@ -414,7 +414,11 @@ def segment_speech(
         # We copied only one wav file and its transcript,
         # so we should only get one result.
         assert len(basenames) == 1, basenames
-        result = segmented[basenames[0]]
+        # Add begin_ts such that the timestamps correspond to the audio before cropping
+        result = [
+            (pho_beg + begin_ts, pho_end + begin_ts, pho)
+            for pho_beg, pho_end, pho in segmented[basenames[0]]
+        ]
         return result
 
 
