@@ -94,6 +94,17 @@ class ViewRecordFigure(Figure):
 
             update_label_with_phonemes(self.label_transcript, rec.phonemes)
 
+    def clear(self):
+        with self.line_pitch.hold_sync(), self.line_intensity.hold_sync(), self.line_vad_intensity.hold_sync(), self.label_transcript.hold_sync():
+            self.line_pitch.x = []
+            self.line_pitch.y = []
+            self.line_intensity.x = []
+            self.line_intensity.y = []
+            self.line_vad_intensity.x = []
+            self.line_vad_intensity.y = []
+            self.label_transcript.x = []
+            self.label_transcript.y = []
+
 
 class CompareFigure(Figure):
 
