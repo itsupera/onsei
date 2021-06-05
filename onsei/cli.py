@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import typer
 
+from onsei.sentence import Sentence
 from onsei.utils import SpeechRecord
 
 app = typer.Typer()

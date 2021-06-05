@@ -3,16 +3,17 @@ import logging
 import os
 import tempfile
 from functools import cached_property
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import parselmouth
 import sox
 from PySegmentKit import PySegmentKit
-from pyjuliusalign.juliusAlignment import formatTextForJulius
 
 # Hide prints
+from onsei.sentence import Sentence
+
 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
     from dtw import dtw, rabinerJuangStepPattern
 
@@ -20,9 +21,6 @@ from onsei.vad import detect_voice_with_webrtcvad
 
 PITCH_TIME_STEP = 0.02
 MINIMUM_PITCH = 100.0
-
-CABOCHA_PATH = os.environ.get("CABOCHA_PATH", "/usr/local/bin/cabocha")
-CABOCHA_ENCODING = os.environ.get("CABOCHA_ENCODING", "utf-8")
 
 
 logging.basicConfig(level=logging.INFO)
@@ -35,14 +33,19 @@ class SpeechRecord:
     def __init__(
         self,
         wav_filename: str,
-        sentence: Optional[str] = None,
+        sentence: Optional[Union[Sentence, str]] = None,
         name: Optional[str] = None,
     ):
         self.wav_filename = wav_filename
-        self.sentence = sentence
-        self.name = name
 
-        self.transcript = generate_transcript(self.sentence)
+        if isinstance(sentence, Sentence):
+            self.sentence = sentence
+        elif isinstance(sentence, str):
+            self.sentence = Sentence(sentence)
+        else:
+            self.sentence = None
+
+        self.name = name
 
         self.snd = parselmouth.Sound(self.wav_filename)
         if self.snd.sampling_frequency != 16000:
@@ -73,8 +76,8 @@ class SpeechRecord:
         logging.debug(f"Voice detected from {self.begin_ts}s to {self.end_ts}s")
 
         self.phonemes = None
-        if self.transcript:
-            self.phonemes = segment_speech(self.wav_filename, self.transcript,
+        if self.sentence:
+            self.phonemes = segment_speech(self.wav_filename, self.sentence.julius_transcript,
                                            self.begin_ts, self.end_ts)
             logging.debug(f"Phonemes segmentation for teacher: {self.phonemes}")
 
@@ -368,15 +371,6 @@ def plot_pitch_errors(pitch_diffs_ts, pitch_diffs):
 
     plt.bar(pitch_diffs_ts, pitch_diffs, width=0.008, color=cc)
     plt.title('Pitch "error"')
-
-
-def generate_transcript(sentence: str) -> str:
-    dataPrepTuple = formatTextForJulius(sentence, CABOCHA_ENCODING, CABOCHA_PATH)
-    line, tmpWordList, tmpKanaList, tmpRomajiList, \
-    unidentifiedUtterance, unnamedEntity, tmpWordCount = dataPrepTuple
-
-    # e.g., "m i z u o m a r e: sh i a k a r a k a w a n a k u t e w a n a r a n a i"
-    return tmpRomajiList.replace(',', ' ')
 
 
 def segment_speech(

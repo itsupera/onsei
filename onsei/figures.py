@@ -6,7 +6,7 @@ from typing import Tuple, List
 import numpy as np
 from bqplot import LinearScale, Lines, Axis, Figure, Label
 
-from onsei.utils import segment_speech, SpeechRecord
+from onsei.utils import SpeechRecord
 
 
 def update_label_with_phonemes(label: Label, phonemes: List[Tuple[float, float, str]]):
