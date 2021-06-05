@@ -1,7 +1,7 @@
-Onsei: Tool to automatically evaluate pitch accent accuracy in Japanese
-========================================================================
+Onsei: Japanese pitch accent training tool
+===========================================
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?filepath=work%2Fnotebook.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?urlpath=voila/render/work/notebook.ipynb)
 [![Gitter](https://badges.gitter.im/itsupera-onsei/community.svg)](https://gitter.im/itsupera-onsei/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 This project aims at creating tools to automatically assess the pitch accent accuracy
@@ -15,23 +15,10 @@ speaker's recording.
 How to play with it
 --------------------
 
-- [Click here](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?filepath=work%2Fnotebook.ipynb)
-to deploy it with Binder.
+[Click here](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?urlpath=voila/render/work/notebook.ipynb)
+to deploy the web interface.
 
-- Wait until the Jupyter notebook is loaded (This can take a few minutes)
-
-- Click on the "Execute" button to generate the user interface
-  
-- Scroll down the page to see the user interface
-
-- Play the teacher's record of the sample sentence
-  
-- Record yourself mimicking them using the record button below "Your recording:"
-
-- Click the "Compare" button to update the pitch comparison graph below
-
-- Try again to match the teacher's pitch !
-
+Note that this can take a few minutes to load !
 
 Methodology
 ------------
