@@ -11,9 +11,9 @@ import parselmouth
 import sox
 from PySegmentKit import PySegmentKit
 
-# Hide prints
 from onsei.sentence import Sentence
 
+# Hide prints
 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
     from dtw import dtw, rabinerJuangStepPattern
 
@@ -47,13 +47,7 @@ class SpeechRecord:
 
         self.name = name
 
-        self.snd = parselmouth.Sound(self.wav_filename)
-        if self.snd.sampling_frequency != 16000:
-            raise ValueError(f"Sampling frequency should be 16kHz, "
-                             f"not {self.snd.sampling_frequency}Hz !")
-        if self.snd.n_channels != 1:
-            raise ValueError(f"Should only have 1 audio channel, "
-                             f"not {self.snd.n_channels} !")
+        self.snd = parse_wav_file_to_sound_obj(self.wav_filename)
 
         self.pitch = self.snd.to_pitch(time_step=PITCH_TIME_STEP)
 
@@ -422,3 +416,23 @@ def save_cropped_audio(src_wav_filename, dst_wav_filename, begin_ts, end_ts):
         # Hide the warnings, a bit ugly but setting SOX's verbosity did not work
         with open(os.devnull, "w") as g, contextlib.redirect_stderr(g):
             tfm.build_file(src_wav_filename, f.name)
+
+
+def parse_wav_file_to_sound_obj(wav_filename: str) -> parselmouth.Sound:
+    snd = parselmouth.Sound(wav_filename)
+    if snd.sampling_frequency != 16000:
+        raise ValueError(f"Sampling frequency should be 16kHz, "
+                         f"not {snd.sampling_frequency}Hz !")
+    if snd.n_channels != 1:
+        raise ValueError(f"Should only have 1 audio channel, "
+                         f"not {snd.n_channels} !")
+    return snd
+
+
+def check_wav_content_is_valid(content: bytes):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        wav_filename = os.path.join(tmp_dir, 'tmp.wav')
+        with open(wav_filename, 'wb') as tmp_file:
+            tmp_file.write(content)
+        # Try parsing to Sound object, will raise an Exception if anything is wrong
+        parse_wav_file_to_sound_obj(wav_filename)
