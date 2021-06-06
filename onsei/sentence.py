@@ -27,7 +27,7 @@ class Sentence:
         self.julius_transcript = generate_julius_transcript_from_words(self.words)
 
     def to_html(self):
-        return ''.join((word.to_html() for word in self.words))
+        return ' '.join((word.to_html() for word in self.words))
 
 
 def parse_words_from_cabocha_output(sentence: etree.Element) -> List['Word']:
