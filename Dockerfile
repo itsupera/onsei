@@ -57,8 +57,7 @@ USER jovyan
 # Install our Python dependencies
 ADD requirements.txt .
 ADD notebook-requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
-RUN pip3 install --no-cache-dir -r notebook-requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt -r notebook-requirements.txt
 
 # Add our sources and data
 ADD notebook.ipynb /home/jovyan/work/
