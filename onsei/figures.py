@@ -2,6 +2,7 @@
 bqplot figures for the notebook
 """
 from typing import Tuple, List
+from traitlets import Bool
 
 import numpy as np
 from bqplot import LinearScale, Lines, Axis, Figure, Label
@@ -36,7 +37,13 @@ class ViewRecordFigure(Figure):
     Visualize a single recording
     """
 
+    crop_vad = Bool().tag(sync=True)
+
     def __init__(self, **kwargs):
+        self.crop_vad = kwargs.get('crop_vad', True)
+
+        self.rec = None
+
         self.scale_ts = LinearScale()
         self.scale_pitch = LinearScale()
         self.scale_intensity = LinearScale()
@@ -53,14 +60,14 @@ class ViewRecordFigure(Figure):
             x=[],
             y=[],
             scales={'x': self.scale_ts, 'y': self.scale_intensity},
-            labels=["Intensity"],
+            labels=["Intensity (No speech)"],
             colors=["lightgreen"],
             fill="bottom",
             display_legend=True
             )
         self.line_vad_intensity = Lines(x=[], y=[],
                                         scales={'x': self.scale_ts, 'y': self.scale_intensity},
-                                        labels=["Detected Speech"], colors=["red"],
+                                        labels=["Intensity (Speech)"], colors=["red"],
                                         fill="bottom", display_legend=True)
         self.ax_ts = Axis(scale=self.scale_ts, label="Time (s)", grid_lines="solid")
         self.ax_pitch = Axis(scale=self.scale_pitch, label="Pitch (Hz)",
@@ -76,23 +83,46 @@ class ViewRecordFigure(Figure):
             axes=[self.ax_ts, self.ax_pitch, self.ax_intensity],
             legend_location="top-right",
             **kwargs,
-            )
+        )
+
+        self.observe(self._update_crop_vad, 'crop_vad')
+
+    def _update_crop_vad(self, _):
+        self.update_figure()
 
     def update_data(self, rec: SpeechRecord):
+        self.rec = rec
+        self.update_figure()
+
+    def update_figure(self):
+        if not self.rec:
+            return
+
         with self.line_pitch.hold_sync(), self.line_intensity.hold_sync(), self.line_vad_intensity.hold_sync(), self.label_transcript.hold_sync():
-            y = rec.pitch_freq_filtered.copy()
+            y = self.rec.pitch_freq_filtered.copy()
             y[y == 0] = np.nan
-            self.line_pitch.x = rec.pitch.xs()
+            self.line_pitch.x = self.rec.pitch.xs()
             self.line_pitch.y = y
 
-            self.line_intensity.x = rec.intensity.xs()
-            self.line_intensity.y = rec.intensity.values.T
+            if self.crop_vad:
+                self.line_intensity.x = []
+                self.line_intensity.y = []
+            else:
+                self.line_intensity.x = self.rec.intensity.xs()
+                self.line_intensity.y = self.rec.intensity.values.T
 
-            self.line_vad_intensity.x = rec.intensity.xs()[rec.begin_idx:rec.end_idx]
-            self.line_vad_intensity.y = rec.intensity.values.T[
-                                        rec.begin_idx:rec.end_idx]
+            self.line_vad_intensity.x = self.rec.intensity.xs()[self.rec.begin_idx:self.rec.end_idx]
+            self.line_vad_intensity.y = self.rec.intensity.values.T[
+                                        self.rec.begin_idx:self.rec.end_idx]
 
-            update_label_with_phonemes(self.label_transcript, rec.phonemes)
+            update_label_with_phonemes(self.label_transcript, self.rec.phonemes)
+
+            if self.crop_vad:
+                self.scale_ts.min = self.line_vad_intensity.x[0]
+                self.scale_ts.max = self.line_vad_intensity.x[-1]
+            else:
+                self.scale_ts.min = self.line_intensity.x[0]
+                self.scale_ts.max = self.line_intensity.x[-1]
 
     def clear(self):
         with self.line_pitch.hold_sync(), self.line_intensity.hold_sync(), self.line_vad_intensity.hold_sync(), self.label_transcript.hold_sync():
