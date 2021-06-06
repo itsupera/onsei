@@ -69,12 +69,12 @@ class SampleSelector(widgets.VBox):
 class UploadSample(widgets.VBox):
     value = Dict().tag(sync=True)
 
-    def __init__(self, samples, **kwargs):
+    def __init__(self, samples, my_samples_dir, **kwargs):
         super().__init__(**kwargs)
 
         self.samples = samples
 
-        self.basepath = 'data/my_samples'
+        self.basepath = my_samples_dir
         pathlib.Path(self.basepath).mkdir(parents=True, exist_ok=True)
 
         self.w_file_upload = widgets.FileUpload(
