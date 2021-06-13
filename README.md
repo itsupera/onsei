@@ -1,12 +1,11 @@
-Onsei: Japanese pitch accent training tool
+Onsei: Japanese pitch accent practice tool
 ===========================================
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?urlpath=voila/render/work/notebook.ipynb)
 [![Gitter](https://badges.gitter.im/itsupera-onsei/community.svg)](https://gitter.im/itsupera-onsei/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 This project aims at creating tools to automatically assess the pitch accent accuracy
-of a Japanese language learner, by comparing a spoken sentence with a native
-speaker's recording.
+of a Japanese language learner, and help them practice their pitch-accent at the sentence level.
 
 - **PLEASE NOTE THAT THIS IS AN EXPERIMENTAL WORK IN PROGRESS !**
 
@@ -20,22 +19,20 @@ to deploy the web interface.
 
 Note that this can take a few minutes to load !
 
-Methodology
-------------
+What is it for ?
+-----------------
 
-As Japanese is a pitch-accent based language, the key intuition here is that
-mispronunciations from foreign learners will likely be related to incorrect pitch
-patterns.
-On the other hand, we assume that the intensity (i.e., volume of the voice) is correctly
-imitated by the student.
-Therefore, we can use the intensity to align the student recording with the teacher's,
-then evaluate the pronunciation based on pitch discrepancies.
+As Japanese is a pitch-accent based language, foreign learners that don't have a
+pitch-accent or tonal mother tongue will likely struggle to identify and reproduce
+the correct pitch patterns.
 
-The comparison process works as follows:
-- Crop the teacher and student recordings to remove the noise before and after the sentence
-- Align the student recording with the teacher's, using Dynamic Time Warping (DTW) on speech intensity
-- Apply the same alignment on the pitch signals and normalize them
-- Compute a distance based on the aligned and normalized pitch signals
+If you are completely novice to pitch-accent, I suggest you first start with an
+introductory course such as [this one](https://www.kanshudo.com/howto/pitch).
+
+Practicing with sentence rather than individual words is interesting
+because there is a difference between the theoretical accent patterns in a sentence
+and how native speakers actually say it, for many reasons
+(emphasis on certain words, emotions, slurred speech...)
 
 Setup
 ------
@@ -67,6 +64,7 @@ Alternatively, it should build with `jupyter-repo2docker`
 pip3 install jupyter-repo2docker
 jupyter-repo2docker -E .
 ```
+
 
 Using the CLI
 --------------
@@ -128,3 +126,15 @@ python3 -m onsei.cli --help
 # Details on a specific command
 python3 -m onsei.cli <command> --help
 ```
+
+
+Methodology
+------------
+
+If you are interested in the way the comparison process works, here is an overview:
+
+- Crop both recordings to remove the noise before and after the sentence
+- Segment both recordings to find where each phoneme starts and ends
+- Align the student recording with the teacher's, using [Dynamic Time Warping (DTW)](https://en.wikipedia.org/wiki/Dynamic_time_warping) based on detected phonemes (by default) or on speech intensity
+- Apply the same alignment on the pitch signals and normalize them
+- Compute a mean distance based on the aligned and normalized pitch signals
