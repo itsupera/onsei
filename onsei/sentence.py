@@ -1,6 +1,7 @@
 import os
 import unicodedata
 import xml.etree.cElementTree as etree
+from collections import namedtuple
 from dataclasses import dataclass
 from typing import Optional, List
 
@@ -9,6 +10,9 @@ from pyjuliusalign.jProcessingSnippet import cabocha, CabochaOutputError
 
 CABOCHA_PATH = os.environ.get("CABOCHA_PATH", "/usr/local/bin/cabocha")
 CABOCHA_ENCODING = os.environ.get("CABOCHA_ENCODING", "utf-8")
+
+
+TextWithFurigana = namedtuple('TextWithFurigana', ['text', 'furigana'])
 
 
 class Sentence:
@@ -63,94 +67,78 @@ def generate_julius_transcript_from_words(words: List['Word']) -> str:
 @dataclass
 class Word:
     raw: str
-    ruby: Optional[str]
+    ruby: Optional[TextWithFurigana]
     phonetics: Optional[str]
 
     def to_html(self) -> str:
         if self.ruby:
             parts = []
-            for _tuple in self.ruby:
-                if len(_tuple) == 1:
-                    parts.append(_tuple[0])
+            for text, furigana in self.ruby:
+                if furigana:
+                    parts.append(f"<rb>{text}<rb><rt>{furigana}</rt>")
                 else:
-                    rb, rt = _tuple
-                    parts.append(f"<rb>{rb}<rb><rt>{rt}</rt>")
+                    parts.append(text)
             return f"<ruby>{''.join(parts)}</ruby>"
         else:
             return self.raw
 
 
-def extract_ruby(raw: str, katakanas: str) -> Optional[List[tuple]]:
+def extract_ruby(raw: str, katakanas: str) -> Optional[List[TextWithFurigana]]:
     ruby = None
     if any(is_kanji(ch) for ch in raw):
         hiraganas = jaconv.kata2hira(katakanas)
-        ruby = []
-        for pair in split_okurigana(raw, hiraganas):
-            ruby.append(pair)
+        ruby = split_okurigana(raw, hiraganas)
     return ruby
 
 
-def split_okurigana(text, hiragana):
+def split_okurigana(text: str, hiragana: str) -> List[TextWithFurigana]:
     """
-    Borrowed from https://github.com/MikimotoH/furigana
-    送り仮名 processing
-    tested:
-      * 出会(であ)う
-      * 明(あか)るい
-      * 駆(か)け抜(ぬ)け
+    Borrowed from https://github.com/mymro/furigana
     """
-    if is_hiragana(text[0]):
-        yield from split_okurigana_reverse(text, hiragana)
-    if all(is_kanji(_) for _ in text):
-        yield text, hiragana
-        return
-    text = list(text)
-    ret = (text[0], [hiragana[0]])
-    for hira in hiragana[1:]:
-        for char in text:
-            if hira == char:
-                text.pop(0)
-                if ret[0]:
-                    if is_kanji(ret[0]):
-                        yield ret[0], ''.join(ret[1][:-1])
-                        yield (ret[1][-1],)
-                    else:
-                        yield (ret[0],)
-                else:
-                    yield (hira,)
-                ret = ('', [])
-                if text and text[0] == hira:
-                    text.pop(0)
+    split = []
+    i = 0
+    j = 0
+
+    while i < len(text):
+        start_i = i
+        start_j = j
+
+        # take care of hiragana only parts
+        if is_kana(text[i]):
+            while i < len(text) and j < len(hiragana) and is_kana(text[i]):
+                i += 1
+                j += 1
+
+            split.append(TextWithFurigana(text[start_i:i], None))
+
+            if i >= len(text):
                 break
-            else:
-                if is_kanji(char):
-                    if ret[1] and hira == ret[1][-1]:
-                        text.pop(0)
-                        yield ret[0], ''.join(ret[1][:-1])
-                        yield char, hira
-                        ret = ('', [])
-                        text.pop(0)
-                    else:
-                        ret = (char, ret[1]+[hira])
-                else:
-                    # char is also hiragana
-                    if hira != char:
-                        break
-                    else:
-                        break
+
+            start_i = i
+            start_j = j
+
+        # find next non kanji
+        while i < len(text) and not is_kana(text[i]):
+            i += 1
+
+        # if there only kanji left
+        if i >= len(text):
+            split.append(TextWithFurigana(text[start_i:i], hiragana[start_j:len(hiragana)]))
+            break
+
+        # get reading of kanji
+        # j-start_j < i - start_i every kanji has at least one sound associated with it
+        while j < len(hiragana) and ((hiragana[j] != text[i] and jaconv.hira2kata(hiragana[j]) !=
+                                      text[i]) or j - start_j < i - start_i):
+            j += 1
+
+        split.append(TextWithFurigana(text[start_i:i], hiragana[start_j:j]))
+
+    return split
 
 
-def split_okurigana_reverse(text, hiragana):
-    """
-    Borrowed from https://github.com/MikimotoH/furigana
-
-    Tested:
-      お茶(おちゃ)
-      ご無沙汰(ごぶさた)
-      お子(こ)さん
-    """
-    yield (text[0],)
-    yield from split_okurigana(text[1:], hiragana[1:])
+def is_kana(ch):
+    return is_hiragana(ch) or is_katakana(ch)
 
 
 def is_kanji(ch: str) -> bool:
@@ -167,10 +155,14 @@ def is_katakana(ch):
     return 'KATAKANA' in unicodedata.name(ch)
 
 
-if __name__ == '__main__':
-    # Simple parsing test on the JSUT sample data
+def parsing_test():
+    """ Simple parsing test on the JSUT sample data """
     with open('data/jsut_basic5000_sample/transcript_utf8.txt') as f:
         for line in f:
             raw = line.split(':')[1]
             s = Sentence(raw)
             print(s.to_html())
+
+
+if __name__ == '__main__':
+    parsing_test()
