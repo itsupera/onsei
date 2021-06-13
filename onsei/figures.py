@@ -2,10 +2,11 @@
 bqplot figures for the notebook
 """
 from typing import Tuple, List
-from traitlets import Bool
 
 import numpy as np
 from bqplot import LinearScale, Lines, Axis, Figure, Label
+from ipywidgets.widgets import Layout
+from traitlets import Bool
 
 from onsei.speech_record import SpeechRecord
 
@@ -82,6 +83,7 @@ class ViewRecordFigure(Figure):
                    self.label_transcript],
             axes=[self.ax_ts, self.ax_pitch, self.ax_intensity],
             legend_location="top-right",
+            layout=Layout(display='none'),  # don't display by default !
             **kwargs,
         )
 
@@ -124,6 +126,9 @@ class ViewRecordFigure(Figure):
                 self.scale_ts.min = self.line_intensity.x[0]
                 self.scale_ts.max = self.line_intensity.x[-1]
 
+        # Display the graph
+        self.layout.display = "flex"
+
     def clear(self):
         with self.line_pitch.hold_sync(), self.line_intensity.hold_sync(), self.line_vad_intensity.hold_sync(), self.label_transcript.hold_sync():
             self.line_pitch.x = []
@@ -134,6 +139,9 @@ class ViewRecordFigure(Figure):
             self.line_vad_intensity.y = []
             self.label_transcript.x = []
             self.label_transcript.y = []
+
+        # Hide the graph
+        self.layout.display = "none"
 
 
 class CompareFigure(Figure):
@@ -188,6 +196,7 @@ class CompareFigure(Figure):
             axes=[self.ax_ts, self.ax_pitch],
             legend_location="top-right",
             title="Pitch comparison on aligned signals",
+            layout=Layout(display='none'),  # don't display by default !
             )
 
     def update_data(self, teacher_rec: SpeechRecord, student_rec: SpeechRecord):
@@ -199,6 +208,9 @@ class CompareFigure(Figure):
 
             update_label_with_phonemes(self.label_transcript, teacher_rec.phonemes)
 
+        # Display the graph
+        self.layout.display = "flex"
+
     def clear(self):
         with self.line_cmp_pitch_student.hold_sync(), self.line_cmp_pitch_teacher.hold_sync():
             self.line_cmp_pitch_student.x = []
@@ -207,3 +219,6 @@ class CompareFigure(Figure):
             self.line_cmp_pitch_teacher.y = []
             self.label_transcript.x = []
             self.label_transcript.y = []
+
+        # Hide the graph
+        self.layout.display = "none"
