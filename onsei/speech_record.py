@@ -4,13 +4,15 @@ SpeechRecord handles the processing of sentence audio recording
 import contextlib
 import logging
 import os
+from enum import Enum, auto
 from functools import cached_property
 from typing import Optional, Union
 
 import numpy as np
 
 from onsei.sentence import Sentence
-from onsei.utils import parse_wav_file_to_sound_obj, ts_sequences_to_index, segment_speech, znormed
+from onsei.utils import parse_wav_file_to_sound_obj, ts_sequences_to_index, segment_speech, znormed, \
+    phonemes_to_step_function
 
 # Hide prints
 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
@@ -19,12 +21,18 @@ with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
 from onsei.vad import detect_voice_with_webrtcvad
 
 PITCH_TIME_STEP = 0.005
+INTENSITY_TIME_STEP = 0.005
 MINIMUM_PITCH = 100.0
 
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("sox").setLevel(logging.ERROR)
+
+
+class AlignmentMethod(str, Enum):
+    phonemes = "phonemes"
+    intensity = "intensity"
 
 
 class SpeechRecord:
@@ -55,7 +63,7 @@ class SpeechRecord:
         self.mean_pitch_freq = np.nanmean(self.pitch_freq)
         self.std_pitch_freq = np.nanstd(self.pitch_freq)
 
-        self.intensity = self.snd.to_intensity(MINIMUM_PITCH)
+        self.intensity = self.snd.to_intensity(MINIMUM_PITCH, time_step=INTENSITY_TIME_STEP)
 
         # Run a simple voice detection algorithm to find
         # where the speech starts and ends
@@ -80,7 +88,7 @@ class SpeechRecord:
         self.pitch_diffs_ts = None
         self.pitch_diffs = None
 
-    def align_with(self, ref_rec: "SpeechRecord"):
+    def align_with(self, ref_rec: "SpeechRecord", method: AlignmentMethod = AlignmentMethod.phonemes):
         self.ref_rec = ref_rec
 
         # Aliases for clarity
@@ -88,8 +96,17 @@ class SpeechRecord:
         teacher_rec = ref_rec
 
         # x is the query (which we will "warp") and y the reference
-        x = student_rec.znormed_intensity
-        y = teacher_rec.znormed_intensity
+        if method == AlignmentMethod.phonemes:
+            if not student_rec.phonemes or not teacher_rec.phonemes:
+                raise ValueError("No phoneme segmentation found for one of the recording")
+            x = phonemes_to_step_function(student_rec.phonemes, student_rec.timestamps_for_alignment)
+            y = phonemes_to_step_function(teacher_rec.phonemes, teacher_rec.timestamps_for_alignment)
+        elif method == AlignmentMethod.intensity:
+            x = student_rec.znormed_intensity
+            y = teacher_rec.znormed_intensity
+        else:
+            raise ValueError(f"Unknown method {method} !")
+
         step_pattern = rabinerJuangStepPattern(4, "c", smoothed=True)
         align = dtw(x, y, keep_internals=True, step_pattern=step_pattern)
 
@@ -97,17 +114,19 @@ class SpeechRecord:
         teacher_rec.align_index = align.index2
 
         # Timestamp for each point in the alignment
-        student_rec.align_ts = student_rec.intensity.xs()[
-                               student_rec.begin_idx:student_rec.end_idx][align.index1]
-        teacher_rec.align_ts = teacher_rec.intensity.xs()[
-                               teacher_rec.begin_idx:teacher_rec.end_idx][align.index2]
+        student_rec.align_ts = student_rec.timestamps_for_alignment[align.index1]
+        teacher_rec.align_ts = teacher_rec.timestamps_for_alignment[align.index2]
+
+    @cached_property
+    def timestamps_for_alignment(self):
+        return self.intensity.xs()[self.begin_idx:self.end_idx]
 
     @cached_property
     def znormed_intensity(self):
         return znormed(
             self.intensity.values[0, self.begin_idx:self.end_idx])
 
-    @cached_property
+    @property
     def aligned_pitch(self):
         # Intensity and pitch computed by parselmouth do not have the same timestamps,
         # so we mean to find the frames in the pitch signal using the aligned timestamps
@@ -115,7 +134,7 @@ class SpeechRecord:
         pitch = self.pitch_freq[align_idx_pitch]
         return pitch
 
-    @cached_property
+    @property
     def norm_aligned_pitch(self):
         return (self.aligned_pitch - self.mean_pitch_freq) / self.std_pitch_freq
 

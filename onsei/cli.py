@@ -11,7 +11,7 @@ import typer
 
 from onsei.pyplot import plot_pitch_and_spectro, plot_aligned_intensities, plot_aligned_pitches, \
     plot_pitch_errors
-from onsei.speech_record import SpeechRecord
+from onsei.speech_record import SpeechRecord, AlignmentMethod
 
 app = typer.Typer()
 
@@ -30,7 +30,7 @@ def view(wav_filename: str, sentence: Optional[str] = None) -> None:
 
 @app.command()
 def compare(teacher_wav_filename: str, student_wav_filename: str,
-            show_graphs: bool = True, notebook: bool = False,
+            show_graphs: bool = True, alignment_method: AlignmentMethod = AlignmentMethod.phonemes,
             sentence: Optional[str] = None) -> float:
     """
     Compare a teacher and student recording of the same sentence
@@ -49,7 +49,7 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
         plot_pitch_and_spectro(student_rec)
         plt.show(block=False)
 
-    student_rec.align_with(teacher_rec)
+    student_rec.align_with(teacher_rec, method=alignment_method)
     mean_distance = student_rec.compare_pitch()
     print(f"Mean distance: {mean_distance:.2f} "
           f"(smaller means student speech is closer to teacher)")
@@ -65,8 +65,7 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
         plot_pitch_errors(student_rec)
         plt.show(block=False)
 
-        if not notebook:
-            input("Press Enter to close graphs and quit")
+        input("Press Enter to close graphs and quit")
 
     return mean_distance
 

@@ -2,7 +2,7 @@ import contextlib
 import logging
 import os
 import tempfile
-from typing import List, Tuple
+from typing import List, Tuple, Iterable
 
 import numpy as np
 import parselmouth
@@ -138,3 +138,29 @@ def check_wav_content_is_valid(content: bytes):
             tmp_file.write(content)
         # Try parsing to Sound object, will raise an Exception if anything is wrong
         parse_wav_file_to_sound_obj(wav_filename)
+
+
+def phonemes_to_step_function(
+    phonemes: List[Tuple[float, float, str]],
+    timestamps: Iterable[float]
+) -> List[float]:
+    """
+    In order to align speech recordings based on phoneme positions,
+    create a step function that we can be used for DTW.
+    The value is 0 before the first phoneme, 1 during the first phoneme, and so on.
+    """
+    xs = []
+    for ts in timestamps:
+        if ts < phonemes[0][0]:
+            x = 0
+        else:
+            for idx, pho in enumerate(phonemes):
+                if ts < pho[1]:
+                    x = idx + 1
+                    break
+            else:
+                x = len(phonemes) + 1
+
+        xs.append(x)
+
+    return xs
