@@ -7,7 +7,7 @@ from traitlets import Bool
 import numpy as np
 from bqplot import LinearScale, Lines, Axis, Figure, Label
 
-from onsei.utils import SpeechRecord
+from onsei.speech_record import SpeechRecord
 
 
 def update_label_with_phonemes(label: Label, phonemes: List[Tuple[float, float, str]]):
@@ -99,7 +99,7 @@ class ViewRecordFigure(Figure):
             return
 
         with self.line_pitch.hold_sync(), self.line_intensity.hold_sync(), self.line_vad_intensity.hold_sync(), self.label_transcript.hold_sync():
-            y = self.rec.pitch_freq_filtered.copy()
+            y = self.rec.pitch_freq.copy()
             y[y == 0] = np.nan
             self.line_pitch.x = self.rec.pitch.xs()
             self.line_pitch.y = y

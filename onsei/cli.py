@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import typer
 
-from onsei.sentence import Sentence
-from onsei.utils import SpeechRecord
+from onsei.pyplot import plot_pitch_and_spectro, plot_aligned_intensities, plot_aligned_pitches, \
+    plot_pitch_errors
+from onsei.speech_record import SpeechRecord
 
 app = typer.Typer()
 
@@ -23,7 +24,7 @@ def view(wav_filename: str, sentence: Optional[str] = None) -> None:
     record = SpeechRecord(wav_filename, sentence)
 
     plt.figure()
-    record.plot_pitch_and_spectro()
+    plot_pitch_and_spectro(record)
     plt.show()
 
 
@@ -43,9 +44,9 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
     if show_graphs:
         plt.figure()
         plt.subplot(211)
-        teacher_rec.plot_pitch_and_spectro()
+        plot_pitch_and_spectro(teacher_rec)
         plt.subplot(212)
-        student_rec.plot_pitch_and_spectro()
+        plot_pitch_and_spectro(student_rec)
         plt.show(block=False)
 
     student_rec.align_with(teacher_rec)
@@ -57,11 +58,11 @@ def compare(teacher_wav_filename: str, student_wav_filename: str,
     if show_graphs:
         plt.figure()
         plt.subplot(311)
-        student_rec.plot_aligned_intensities()
+        plot_aligned_intensities(student_rec)
         plt.subplot(312)
-        student_rec.plot_aligned_pitches()
+        plot_aligned_pitches(student_rec)
         plt.subplot(313)
-        student_rec.plot_pitch_errors()
+        plot_pitch_errors(student_rec)
         plt.show(block=False)
 
         if not notebook:
