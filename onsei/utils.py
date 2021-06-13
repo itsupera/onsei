@@ -19,7 +19,7 @@ with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
 
 from onsei.vad import detect_voice_with_webrtcvad
 
-PITCH_TIME_STEP = 0.02
+PITCH_TIME_STEP = 0.005
 MINIMUM_PITCH = 100.0
 
 
@@ -49,13 +49,12 @@ class SpeechRecord:
 
         self.snd = parse_wav_file_to_sound_obj(self.wav_filename)
 
-        self.pitch = self.snd.to_pitch(time_step=PITCH_TIME_STEP)
+        self.pitch = self.snd.to_pitch(time_step=PITCH_TIME_STEP).kill_octave_jumps().smooth()
 
         self.pitch_freq = self.pitch.selected_array['frequency']
         self.pitch_freq[self.pitch_freq == 0] = np.nan
-
-        self.pitch_freq_filtered, self.mean_pitch_freq, self.std_pitch_freq = \
-            cleanup_pitch_freq(self.pitch_freq)
+        self.mean_pitch_freq = np.nanmean(self.pitch_freq)
+        self.std_pitch_freq = np.nanstd(self.pitch_freq)
 
         self.intensity = self.snd.to_intensity(MINIMUM_PITCH)
 
@@ -105,7 +104,7 @@ class SpeechRecord:
         draw_spectrogram(spectrogram, maximum_frequency=plot_maximum_frequency)
 
         pitch_ts = self.pitch.xs()
-        y = self.pitch_freq_filtered.copy()
+        y = self.pitch_freq.copy()
         y[y == 0] = np.nan
         plt.plot(pitch_ts, y, 'o', markersize=5, color='w')
         plt.plot(pitch_ts, y, 'o', markersize=2)
@@ -158,7 +157,7 @@ class SpeechRecord:
         # Intensity and pitch computed by parselmouth do not have the same timestamps,
         # so we mean to find the frames in the pitch signal using the aligned timestamps
         align_idx_pitch = ts_sequences_to_index(self.align_ts, self.pitch.xs())
-        pitch = self.pitch_freq_filtered[align_idx_pitch]
+        pitch = self.pitch_freq[align_idx_pitch]
         return pitch
 
     @cached_property
@@ -228,30 +227,6 @@ def draw_pitch(pitch: parselmouth.Pitch, maximum_frequency=None):
         maximum_frequency = pitch.ceiling
     plt.ylim(0, maximum_frequency)
     plt.ylabel("fundamental frequency [Hz]")
-
-
-def cleanup_pitch_freq(pitch_freq):
-    """
-    Remove some outliers from the pitch frequencies
-    """
-    mean = np.nanmean(pitch_freq)
-    std = np.nanstd(pitch_freq)
-
-    min_cut = mean - std * 2.5
-    max_cut = mean + std * 2.5
-    logging.debug(f"Pitch frequencies cleanup: mean is {mean:.2f} Hz, "
-                  f"keeping values within [{min_cut:.2f} Hz, {max_cut:.2f} Hz]")
-
-    new_sig = []
-    for x in pitch_freq:
-        if not np.isnan(x) and (min_cut <= x <= max_cut):
-            new_sig.append(x)
-        else:
-            new_sig.append(np.nan)
-
-    new_sig = np.array(new_sig)
-
-    return new_sig, mean, std
 
 
 def plot_phonemes(
