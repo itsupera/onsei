@@ -32,25 +32,6 @@ RUN rm -rf mecab-ipadic-neologd
 # Setup MeCab to use mecab-ipadic-neologd dict by default
 RUN sed -i "s'^dicdir.*'dicdir = /usr/local/lib/mecab/dic/mecab-ipadic-neologd'g" /usr/local/etc/mecabrc
 
-# CRF++ 0.58
-RUN curl -o CRF++-0.58.tar.gz -L 'https://drive.google.com/uc?export=download&id=0B4y35FiV1wh7QVR6VXJ5dWExSTQ'
-RUN tar zxfv CRF++-0.58.tar.gz
-RUN cd CRF++-0.58; ./configure; make; make install
-RUN ldconfig
-RUN rm -rf CRF++-0.58 CRF++-0.58.tar.gz
-
-# CaboCha 0.69
-RUN pip3 install --no-cache-dir gdown==3.13.0 \
-    && gdown https://drive.google.com/uc?id=0B4y35FiV1wh7SDd1Q1dUQkZQaUU \
-    && pip3 uninstall -y gdown
-RUN tar jxf cabocha-0.69.tar.bz2
-RUN cd cabocha-0.69 && ./configure --with-charset=utf8 && make && make install
-RUN ldconfig
-RUN rm -rf cabocha-0.69 cabocha-0.69.tar.bz2
-
-# Testing cabocha install
-# RUN echo "水をマレーシアから買わなくてはならないのです" | cabocha -f 3
-
 # Go back to regular user
 USER jovyan
 
@@ -63,3 +44,4 @@ RUN pip3 install --no-cache-dir -r requirements.txt -r notebook-requirements.txt
 ADD notebook.ipynb /home/jovyan/work/
 ADD onsei /home/jovyan/work/onsei
 ADD data /home/jovyan/work/data
+
