@@ -82,6 +82,18 @@ def plot_pitch_errors(rec: SpeechRecord):
         plot_phonemes(rec.ref_rec.phonemes, y=0, color="black")
 
 
+def plot_aligned_pitches_and_phonemes(rec: SpeechRecord):
+    plt.plot(rec.ref_rec.align_ts, rec.ref_rec.norm_aligned_pitch, 'b-')
+    plt.plot(rec.ref_rec.align_ts, rec.norm_aligned_pitch, 'r-')
+
+    if rec.ref_rec.phonemes:
+        plot_phonemes(rec.ref_rec.phonemes, y=0, color="black", font_size=18)
+
+    plt.xlabel("Time(s)")
+    plt.ylabel("Normalized Pitch")
+    plt.legend(["Card audio", "Your recording"])
+
+
 def draw_spectrogram(spectrogram, dynamic_range=70, maximum_frequency=None):
     X, Y = spectrogram.x_grid(), spectrogram.y_grid()
     sg_db = 10 * np.log10(spectrogram.values)
@@ -120,6 +132,7 @@ def plot_phonemes(
         color: str = 'white',
         xmin: Optional[float] = None,
         xmax: Optional[float] = None,
+        font_size=24,
 ):
     # Setup font configuration of matplotlib to plot Japanese text
     # from matplotlib import rcParams
@@ -130,11 +143,11 @@ def plot_phonemes(
 
     font_dict = {
         'color': color,
-        'size': 24,
+        'size': font_size,
         }
     sep_font_dict = {
         'color': 'gray',
-        'size': 24,
+        'size': font_size,
         }
 
     plt_xmin, plt_xmax = plt.xlim()
