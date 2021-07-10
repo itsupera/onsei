@@ -1,8 +1,12 @@
+
 Onsei: Japanese pitch accent practice tool
 ===========================================
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/itsupera/onsei/HEAD?urlpath=voila/render/work/notebook.ipynb)
 [![Gitter](https://badges.gitter.im/itsupera-onsei/community.svg)](https://gitter.im/itsupera-onsei/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+<span class="badge-buymeacoffee">
+<a href="https://www.buymeacoffee.com/itsupera" title="Donate to this project using Buy Me A Coffee"><img src="https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg" alt="Buy Me A Coffee donate button" /></a>
+</span>
 
 This project aims at creating tools to automatically assess the pitch accent accuracy
 of a Japanese language learner, and help them practice their pitch-accent at the sentence level.
@@ -18,6 +22,8 @@ How to play with it
 to deploy the web interface.
 
 Note that this can take a few minutes to load !
+
+Did you like it ? Please consider [donating](https://www.buymeacoffee.com/itsupera) to help me support future developments, thank you !
 
 What is it for ?
 -----------------
