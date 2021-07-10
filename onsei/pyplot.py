@@ -91,7 +91,7 @@ def plot_aligned_pitches_and_phonemes(rec: SpeechRecord):
 
     plt.xlabel("Time(s)")
     plt.ylabel("Normalized Pitch")
-    plt.legend(["Card audio", "Your recording"])
+    plt.legend(["Reference audio", "Your recording"])
 
 
 def draw_spectrogram(spectrogram, dynamic_range=70, maximum_frequency=None):

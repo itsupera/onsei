@@ -97,8 +97,10 @@ class SpeechRecord:
 
         # x is the query (which we will "warp") and y the reference
         if method == AlignmentMethod.phonemes:
-            if not student_rec.phonemes or not teacher_rec.phonemes:
-                raise ValueError("No phoneme segmentation found for one of the recording")
+            if not teacher_rec.phonemes:
+                raise NoPhonemeSegmentationError(teacher_rec)
+            if not student_rec.phonemes:
+                raise NoPhonemeSegmentationError(student_rec)
             x = phonemes_to_step_function(student_rec.phonemes, student_rec.timestamps_for_alignment)
             y = phonemes_to_step_function(teacher_rec.phonemes, teacher_rec.timestamps_for_alignment)
         elif method == AlignmentMethod.intensity:
@@ -108,7 +110,10 @@ class SpeechRecord:
             raise ValueError(f"Unknown method {method} !")
 
         step_pattern = rabinerJuangStepPattern(4, "c", smoothed=True)
-        align = dtw(x, y, keep_internals=True, step_pattern=step_pattern)
+        try:
+            align = dtw(x, y, keep_internals=True, step_pattern=step_pattern)
+        except ValueError as exc:
+            raise AlignmentError(exc)
 
         student_rec.align_index = align.index1
         teacher_rec.align_index = align.index2
@@ -150,3 +155,12 @@ class SpeechRecord:
         distances = [abs(p) for p in self.pitch_diffs]
         mean_distance = np.mean(distances)
         return mean_distance
+
+
+class AlignmentError(Exception):
+    pass
+
+
+class NoPhonemeSegmentationError(Exception):
+    def __init__(self, record: SpeechRecord):
+        self.record = record
