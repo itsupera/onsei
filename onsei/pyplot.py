@@ -83,15 +83,15 @@ def plot_pitch_errors(rec: SpeechRecord):
 
 
 def plot_aligned_pitches_and_phonemes(rec: SpeechRecord):
-    plt.plot(rec.ref_rec.align_ts, rec.ref_rec.norm_aligned_pitch, 'b-')
-    plt.plot(rec.ref_rec.align_ts, rec.norm_aligned_pitch, 'r-')
+    plt.plot(rec.ref_rec.align_ts, rec.ref_rec.norm_aligned_pitch, 'b-', label="Reference audio")
+    plt.plot(rec.ref_rec.align_ts, rec.norm_aligned_pitch, 'r-', label="Your recording")
 
     if rec.ref_rec.phonemes:
         plot_phonemes(rec.ref_rec.phonemes, y=0, color="black", font_size=18)
 
     plt.xlabel("Time(s)")
     plt.ylabel("Normalized Pitch")
-    plt.legend(["Reference audio", "Your recording"])
+    plt.legend(bbox_to_anchor=(0, 1, 1, 0), loc="lower right", ncol=2)
 
 
 def draw_spectrogram(spectrogram, dynamic_range=70, maximum_frequency=None):
