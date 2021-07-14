@@ -7,6 +7,5 @@ numpy==1.20.2  # avoid v1.19 because of binary incompatibility issues
 praat-parselmouth==0.4.0
 git+git://github.com/itsupera/furigana.git#egg=furigana
 PySegmentKit==0.2.1
-sox==1.4.1
 typer==0.3.2
 webrtcvad==2.0.10

@@ -5,7 +5,7 @@ MAINTAINER Itsupera <itsupera@gmail.com>
 USER root
 
 RUN apt-get update && apt-get install -y \
-  sox curl file \
+  curl file \
   && rm -rf /var/lib/apt/lists/*
 
 # Install MeCab and Cabocha for extracting phonemes from sentence transcripts

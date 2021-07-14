@@ -160,13 +160,3 @@ def detect_voice_with_webrtcvad(wav_filename: str) -> tuple:
     begin_ts, end_ts = vad_ts[begin_idx], vad_ts[end_idx]
 
     return vad_ts, vad_is_speech, begin_ts, end_ts
-
-
-def convert_audio(wav_filename, tmp_filename):
-    import sox
-    tfm = sox.Transformer()
-    tfm.rate(16000)
-    tfm.channels(1)
-    # Hide the warnings, a bit ugly but setting SOX's verbosity did not work
-    with open(os.devnull, "w") as g, contextlib.redirect_stderr(g):
-        tfm.build_file(wav_filename, tmp_filename)

@@ -1,12 +1,12 @@
 import contextlib
 import logging
 import os
+import subprocess
 import tempfile
 from typing import List, Tuple, Iterable
 
 import numpy as np
 import parselmouth
-import sox
 from PySegmentKit import PySegmentKit
 
 
@@ -111,13 +111,11 @@ def segment_speech(
         return result
 
 
-def save_cropped_audio(src_wav_filename, dst_wav_filename, begin_ts, end_ts):
-    with open(dst_wav_filename, 'w') as f:
-        tfm = sox.Transformer()
-        tfm.trim(begin_ts, end_ts)
-        # Hide the warnings, a bit ugly but setting SOX's verbosity did not work
-        with open(os.devnull, "w") as g, contextlib.redirect_stderr(g):
-            tfm.build_file(src_wav_filename, f.name)
+def save_cropped_audio(src_wav_filename: str, dst_wav_filename: str, begin_ts: float, end_ts: float):
+    p = subprocess.Popen(
+        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(begin_ts), "-t", str(end_ts),
+         "-i", src_wav_filename, dst_wav_filename])
+    p.wait()
 
 
 def parse_wav_file_to_sound_obj(wav_filename: str) -> parselmouth.Sound:
@@ -164,3 +162,10 @@ def phonemes_to_step_function(
         xs.append(x)
 
     return xs
+
+
+def convert_audio(original_audio_filepath: str, converted_wav_filepath: str) -> None:
+    p = subprocess.Popen(
+        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", original_audio_filepath, "-ar", "16000", "-ac", "1",
+         converted_wav_filepath])
+    p.wait()
