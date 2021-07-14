@@ -20,7 +20,7 @@ from onsei.speech_record import SpeechRecord, AlignmentError, NoPhonemeSegmentat
 app = FastAPI()
 
 
-SUPPORTED_FILE_EXTENSIONS = {"wav", "mp3"}
+SUPPORTED_FILE_EXTENSIONS = {"wav", "mp3", "ogg"}
 
 
 @app.post("/compare/graph.png")
