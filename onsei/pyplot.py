@@ -89,9 +89,24 @@ def plot_aligned_pitches_and_phonemes(rec: SpeechRecord):
     if rec.ref_rec.phonemes:
         plot_phonemes(rec.ref_rec.phonemes, y=0, color="black", font_size=18)
 
-    plt.xlabel("Time(s)")
+    plt.xlabel("Time [s]")
     plt.ylabel("Normalized Pitch")
     plt.legend(bbox_to_anchor=(0, 1, 1, 0), loc="lower right", ncol=2)
+
+
+def plot_pitch_and_phonemes(rec: SpeechRecord, color, label):
+    y = rec.intensity.values.T
+    plt.plot(rec.intensity.xs(), y, f'g-', label=label)
+    plt.fill_between(rec.intensity.xs()[rec.begin_idx:rec.end_idx], y[rec.begin_idx:rec.end_idx, 0], color='green', alpha=0.2)
+    plt.ylabel("Intensity [dB]")
+
+    plt.twinx()
+    plt.plot(rec.pitch.xs(), rec.pitch_freq, f'{color}-', label=label)
+    plt.ylabel("Pitch [Hz]")
+
+    if rec.phonemes:
+        plot_phonemes(rec.phonemes, y=rec.mean_pitch_freq, color="black", font_size=18)
+
 
 
 def draw_spectrogram(spectrogram, dynamic_range=70, maximum_frequency=None):

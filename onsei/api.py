@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from fastapi import FastAPI, File, UploadFile, Form, status, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-from onsei.pyplot import plot_aligned_pitches_and_phonemes
+from onsei.pyplot import plot_aligned_pitches_and_phonemes, plot_pitch_and_spectro, plot_pitch_and_phonemes
 from onsei.speech_record import SpeechRecord, AlignmentError, NoPhonemeSegmentationError
 
 app = FastAPI()
@@ -26,6 +26,7 @@ SUPPORTED_FILE_EXTENSIONS = {"wav", "mp3"}
 @app.post("/compare/graph.png")
 def post_compare_graph_png(
     sentence: str = Form(...),
+    show_all_graphs: bool = Form(False),
     teacher_audio_file: UploadFile = File(...),
     student_audio_file: UploadFile = File(...),
 ):
@@ -80,12 +81,23 @@ def post_compare_graph_png(
         # Transform the distance into a score from 0 to 100
         score = int(1.0 / (mean_distance + 1.0) * 100)
 
+    if show_all_graphs:
+        plt.figure(figsize=(12, 6))
+        plt.subplot(311)
+        plt.title(f"Similarity score: {score}%")
+        plot_aligned_pitches_and_phonemes(student_rec)
+        plt.subplot(312)
+        plot_pitch_and_phonemes(student_rec, 'r', "Your recording")
+        plt.subplot(313)
+        plot_pitch_and_phonemes(teacher_rec, 'b', "Reference audio")
+    else:
         plt.figure(figsize=(12, 4))
         plt.title(f"Similarity score: {score}%")
         plot_aligned_pitches_and_phonemes(student_rec)
-        b = BytesIO()
-        plt.savefig(b, format='png')
-        b.seek(0)
+
+    b = BytesIO()
+    plt.savefig(b, format='png')
+    b.seek(0)
 
     return StreamingResponse(b, media_type="image/png")
 
@@ -99,6 +111,7 @@ async def get_root():
 Teacher audio file: <input name="teacher_audio_file" type="file"></br>
 Student audio file: <input name="student_audio_file" type="file"></br>
 Sentence: <input name="sentence" type="text"></br>
+<input name="show_all_graphs" type="checkbox">Show all graphs ?</br>
 <input type="submit">
 </form>
 </br>
