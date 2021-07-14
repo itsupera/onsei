@@ -3,6 +3,7 @@ import json
 import os
 import sys
 from collections import defaultdict
+from tempfile import TemporaryDirectory
 from typing import Optional
 
 import matplotlib.pyplot as plt
@@ -12,16 +13,20 @@ import typer
 from onsei.pyplot import plot_pitch_and_spectro, plot_aligned_intensities, plot_aligned_pitches, \
     plot_pitch_errors
 from onsei.speech_record import SpeechRecord, AlignmentMethod
+from onsei.utils import convert_audio
 
 app = typer.Typer()
 
 
 @app.command()
-def view(wav_filename: str, sentence: Optional[str] = None) -> None:
+def view(audio_filename: str, sentence: Optional[str] = None) -> None:
     """
     Visualize a recording
     """
-    record = SpeechRecord(wav_filename, sentence)
+    with TemporaryDirectory() as td:
+        wav_filename = os.path.join(td, "audio.wav")
+        convert_audio(audio_filename, wav_filename)
+        record = SpeechRecord(wav_filename, sentence)
 
     plt.figure()
     plot_pitch_and_spectro(record)
@@ -29,17 +34,22 @@ def view(wav_filename: str, sentence: Optional[str] = None) -> None:
 
 
 @app.command()
-def compare(teacher_wav_filename: str, student_wav_filename: str,
+def compare(teacher_audio_filename: str, student_audio_filename: str,
             show_graphs: bool = True, alignment_method: AlignmentMethod = AlignmentMethod.phonemes,
             sentence: Optional[str] = None) -> float:
     """
     Compare a teacher and student recording of the same sentence
     """
+    with TemporaryDirectory() as td:
+        teacher_wav_filename = os.path.join(td, "teacher.wav")
+        convert_audio(teacher_audio_filename, teacher_wav_filename)
+        student_wav_filename = os.path.join(td, "student.wav")
+        convert_audio(student_audio_filename, student_wav_filename)
 
-    print(f"Comparing {teacher_wav_filename} with {student_wav_filename}")
+        print(f"Comparing {teacher_wav_filename} with {student_wav_filename}")
 
-    teacher_rec = SpeechRecord(teacher_wav_filename, sentence, name="Teacher")
-    student_rec = SpeechRecord(student_wav_filename, sentence, name="Student")
+        teacher_rec = SpeechRecord(teacher_wav_filename, sentence, name="Teacher")
+        student_rec = SpeechRecord(student_wav_filename, sentence, name="Student")
 
     if show_graphs:
         plt.figure()
