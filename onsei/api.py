@@ -15,7 +15,8 @@ from fastapi import FastAPI, File, UploadFile, Form, status, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 from onsei.pyplot import plot_aligned_pitches_and_phonemes, plot_pitch_and_spectro, plot_pitch_and_phonemes
-from onsei.speech_record import SpeechRecord, AlignmentError, NoPhonemeSegmentationError
+from onsei.speech_record import SpeechRecord, AlignmentError, NoPhonemeSegmentationError, AlignmentMethod
+from onsei.utils import convert_audio
 
 app = FastAPI()
 
@@ -27,6 +28,7 @@ SUPPORTED_FILE_EXTENSIONS = {"wav", "mp3", "ogg"}
 def post_compare_graph_png(
     sentence: str = Form(...),
     show_all_graphs: bool = Form(False),
+    alignment_method: AlignmentMethod = Form(AlignmentMethod.phonemes),
     teacher_audio_file: UploadFile = File(...),
     student_audio_file: UploadFile = File(...),
 ):
@@ -58,7 +60,7 @@ def post_compare_graph_png(
         try:
             teacher_rec = SpeechRecord(teacher_wav_filepath, sentence, name="Teacher")
             student_rec = SpeechRecord(student_wav_filepath, sentence, name="Student")
-            student_rec.align_with(teacher_rec)
+            student_rec.align_with(teacher_rec, method=alignment_method)
             mean_distance = student_rec.compare_pitch()
         except AlignmentError:
             logging.error(traceback.format_exc())
@@ -111,7 +113,13 @@ async def get_root():
 Teacher audio file: <input name="teacher_audio_file" type="file"></br>
 Student audio file: <input name="student_audio_file" type="file"></br>
 Sentence: <input name="sentence" type="text"></br>
+</br>
 <input name="show_all_graphs" type="checkbox">Show all graphs ?</br>
+Align speech using: <select name="alignment_method">
+  <option value="phonemes">Phonemes</option>
+  <option value="intensity">Intensity</option>
+</select></br>
+</br>
 <input type="submit">
 </form>
 </br>
@@ -119,10 +127,3 @@ Sentence: <input name="sentence" type="text"></br>
 </body>
     """
     return HTMLResponse(content=content)
-
-
-def convert_audio(original_audio_filepath: str, converted_wav_filepath: str) -> None:
-    p = subprocess.Popen(
-        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", original_audio_filepath, "-ar", "16000", "-ac", "1",
-         converted_wav_filepath])
-    p.wait()
