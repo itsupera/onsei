@@ -104,6 +104,52 @@ def post_compare_graph_png(
     return StreamingResponse(b, media_type="image/png")
 
 
+@app.post("/graph.png")
+def post_graph_png(
+    sentence: str = Form(...),
+    audio_file: UploadFile = File(...),
+):
+    file = audio_file
+    extension = file.filename.split('.')[-1]
+    # Check file extension first to make the error more user-friendly
+    if extension not in SUPPORTED_FILE_EXTENSIONS:
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                            detail=f'{file.filename} has unsupported extension {extension}, '
+                                   f'should be one of the following: {",".join(SUPPORTED_FILE_EXTENSIONS)}')
+
+    with TemporaryDirectory() as td:
+        audio_filepath = os.path.join(td, audio_file.filename)
+        with open(audio_filepath, "wb") as f:
+            f.write(audio_file.file.read())
+
+        logging.debug(f"Converting {audio_filepath} to WAV 16KHz mono")
+
+        wav_filepath = os.path.join(td, "audio.wav")
+        convert_audio(audio_filepath, wav_filepath)
+
+        try:
+            rec = SpeechRecord(wav_filepath, sentence, name="Reference")
+        except NoPhonemeSegmentationError as exc:
+            logging.error(traceback.format_exc())
+            detail = f'Could not segment the phonemes in the audio'
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=detail)
+        except Exception:
+            logging.error(traceback.format_exc())
+            "No warping path found compatible with the local constraints"
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f'Something went wrong on the server, not your fault :(')
+
+        plt.figure(figsize=(12, 6))
+        plot_pitch_and_phonemes(rec, 'b', "Reference audio")
+
+    b = BytesIO()
+    plt.savefig(b, format='png')
+    b.seek(0)
+
+    return StreamingResponse(b, media_type="image/png")
+
+
 @app.get("/")
 async def get_root():
     """ Form for testing """
