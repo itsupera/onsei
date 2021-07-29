@@ -71,6 +71,25 @@ pip3 install jupyter-repo2docker
 jupyter-repo2docker -E .
 ```
 
+API
+----
+
+An API version has been developed to create an [Anki addon](https://github.com/itsupera/onsei-anki) !
+
+To setup it up:
+```bash
+# First build onsei base image
+docker build -t onsei .
+# Then build the onsei-api image on top of it
+docker build -f Dockerfile.api -t onsei-api .
+docker run --network=host onsei-api
+# Open http://127.0.0.1:8000/ in your web browser
+```
+
+Or if you already have everything installed locally, can simply run it with:
+```bash
+uvicorn onsei.api:app
+```
 
 Using the CLI
 --------------

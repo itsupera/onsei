@@ -1,0 +1,9 @@
+FROM onsei:latest
+MAINTAINER Itsupera <itsupera@gmail.com>
+
+WORKDIR work
+
+RUN pip3 install --no-cache-dir fastapi==0.66.0 uvicorn==0.14.0 python-multipart
+
+EXPOSE 8000
+ENTRYPOINT ["uvicorn", "onsei.api:app"]
