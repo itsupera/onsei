@@ -113,7 +113,7 @@ def segment_speech(
 
 def save_cropped_audio(src_wav_filename: str, dst_wav_filename: str, begin_ts: float, end_ts: float):
     p = subprocess.Popen(
-        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(begin_ts), "-t", str(end_ts),
+        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(begin_ts), "-to", str(end_ts),
          "-i", src_wav_filename, dst_wav_filename])
     p.wait()
 
