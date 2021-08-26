@@ -95,7 +95,11 @@ def post_compare_graph_png(
             score = int(1.0 / (mean_distance + 1.0) * 100)
 
     show_alignment = align_audios and score is not None
-    nb_graphs = int(show_alignment) + int(show_all_graphs) * 2
+    if show_alignment:
+        nb_graphs = 1 + int(show_all_graphs) * 2
+    else:
+        nb_graphs = 2
+
     plt.figure(figsize=(12, max(nb_graphs * 2, 4)))
     idx = 1
     if show_alignment:
@@ -103,7 +107,7 @@ def post_compare_graph_png(
         plt.title(f"Similarity score: {score}%")
         plot_aligned_pitches_and_phonemes(student_rec)
         idx += 1
-    if show_all_graphs:
+    if not show_alignment or show_all_graphs:
         plt.subplot(nb_graphs * 100 + 10 + idx)
         plot_pitch_and_phonemes(student_rec, 'r', "Your recording")
         if not align_audios:
