@@ -27,8 +27,8 @@ SUPPORTED_FILE_EXTENSIONS = {"wav", "mp3", "ogg"}
 @app.post("/compare/graph.png")
 def post_compare_graph_png(
     sentence: str = Form(...),
+    align_audios: bool = Form(True),
     show_all_graphs: bool = Form(False),
-    align_audios: bool = Form(False),
     alignment_method: AlignmentMethod = Form(AlignmentMethod.phonemes),
     fallback_if_no_alignment: bool = Form(True),
     teacher_audio_file: UploadFile = File(...),
@@ -177,7 +177,7 @@ Teacher audio file: <input name="teacher_audio_file" type="file"></br>
 Student audio file: <input name="student_audio_file" type="file"></br>
 Sentence: <input name="sentence" type="text"></br>
 </br>
-<input name="align_audios" type="checkbox">Align audios ?</br>
+<input name="align_audios" type="checkbox" checked>Align audios ?</br>
 <input name="show_all_graphs" type="checkbox">Show all graphs ?</br>
 Align speech using: <select name="alignment_method">
   <option value="phonemes">Phonemes</option>
