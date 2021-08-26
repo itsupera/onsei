@@ -96,7 +96,7 @@ def post_compare_graph_png(
 
     show_alignment = align_audios and score is not None
     nb_graphs = int(show_alignment) + int(show_all_graphs) * 2
-    plt.figure(figsize=(12, nb_graphs * 2))
+    plt.figure(figsize=(12, max(nb_graphs * 2, 4)))
     idx = 1
     if show_alignment:
         plt.subplot(nb_graphs * 100 + 10 + idx)
