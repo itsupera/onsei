@@ -30,6 +30,7 @@ def post_compare_graph_png(
     show_all_graphs: bool = Form(False),
     align_audios: bool = Form(False),
     alignment_method: AlignmentMethod = Form(AlignmentMethod.phonemes),
+    fallback_if_no_alignment: bool = Form(True),
     teacher_audio_file: UploadFile = File(...),
     student_audio_file: UploadFile = File(...),
 ):
@@ -71,8 +72,9 @@ def post_compare_graph_png(
                 mean_distance = student_rec.compare_pitch()
         except AlignmentError:
             logging.error(traceback.format_exc())
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail=f'Could not align your speech with the reference, try recording again')
+            if not fallback_if_no_alignment:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail=f'Could not align your speech with the reference, try recording again')
         except NoPhonemeSegmentationError as exc:
             logging.error(traceback.format_exc())
             if exc.record == student_rec:
@@ -92,10 +94,11 @@ def post_compare_graph_png(
         if mean_distance is not None:
             score = int(1.0 / (mean_distance + 1.0) * 100)
 
-    nb_graphs = int(align_audios) + int(show_all_graphs) * 2
+    show_alignment = align_audios and score is not None
+    nb_graphs = int(show_alignment) + int(show_all_graphs) * 2
     plt.figure(figsize=(12, nb_graphs * 2))
     idx = 1
-    if align_audios:
+    if show_alignment:
         plt.subplot(nb_graphs * 100 + 10 + idx)
         plt.title(f"Similarity score: {score}%")
         plot_aligned_pitches_and_phonemes(student_rec)
