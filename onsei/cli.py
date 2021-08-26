@@ -61,8 +61,11 @@ def compare(teacher_audio_filename: str, student_audio_filename: str,
 
     student_rec.align_with(teacher_rec, method=alignment_method)
     mean_distance = student_rec.compare_pitch()
-    print(f"Mean distance: {mean_distance:.2f} "
-          f"(smaller means student speech is closer to teacher)")
+    if mean_distance is not None:
+        print(f"Mean distance: {mean_distance:.2f} "
+              f"(smaller means student speech is closer to teacher)")
+    else:
+        sys.stderr.write("Could not compute mean distance !\n")
 
     # Plot the warped intensity and pitches
     if show_graphs:

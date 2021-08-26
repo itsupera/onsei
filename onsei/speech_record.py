@@ -154,6 +154,9 @@ class SpeechRecord:
 
         distances = [abs(p) for p in self.pitch_diffs]
         mean_distance = np.mean(distances)
+        # This might happen if distances is empty for example
+        if np.isnan(mean_distance):
+            mean_distance = None
         return mean_distance
 
 
