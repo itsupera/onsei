@@ -28,10 +28,15 @@ SUPPORTED_FILE_EXTENSIONS = {"wav", "mp3", "ogg"}
 def post_compare_graph_png(
     sentence: str = Form(...),
     show_all_graphs: bool = Form(False),
+    align_audios: bool = Form(False),
     alignment_method: AlignmentMethod = Form(AlignmentMethod.phonemes),
     teacher_audio_file: UploadFile = File(...),
     student_audio_file: UploadFile = File(...),
 ):
+    if not show_all_graphs and not align_audios:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Can't have both show_all_graphs and align_audios set to false !")
+
     for file, label in [(teacher_audio_file, "Reference audio"), (student_audio_file, "Your recording")]:
         extension = file.filename.split('.')[-1]
         # Check file extension first to make the error more user-friendly
@@ -57,11 +62,13 @@ def post_compare_graph_png(
 
         logging.debug(f"Comparing {teacher_wav_filepath} with {student_wav_filepath}")
 
+        mean_distance = None
         try:
             teacher_rec = SpeechRecord(teacher_wav_filepath, sentence, name="Teacher")
             student_rec = SpeechRecord(student_wav_filepath, sentence, name="Student")
-            student_rec.align_with(teacher_rec, method=alignment_method)
-            mean_distance = student_rec.compare_pitch()
+            if align_audios:
+                student_rec.align_with(teacher_rec, method=alignment_method)
+                mean_distance = student_rec.compare_pitch()
         except AlignmentError:
             logging.error(traceback.format_exc())
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -81,21 +88,29 @@ def post_compare_graph_png(
                                 detail=f'Something went wrong on the server, not your fault :(')
 
         # Transform the distance into a score from 0 to 100
-        score = int(1.0 / (mean_distance + 1.0) * 100)
+        score = None
+        if mean_distance is not None:
+            score = int(1.0 / (mean_distance + 1.0) * 100)
 
+    nb_graphs = int(align_audios) + int(show_all_graphs) * 2
+    plt.figure(figsize=(12, nb_graphs * 2))
+    idx = 1
+    if align_audios:
+        plt.subplot(nb_graphs * 100 + 10 + idx)
+        plt.title(f"Similarity score: {score}%")
+        plot_aligned_pitches_and_phonemes(student_rec)
+        idx += 1
     if show_all_graphs:
-        plt.figure(figsize=(12, 6))
-        plt.subplot(311)
-        plt.title(f"Similarity score: {score}%")
-        plot_aligned_pitches_and_phonemes(student_rec)
-        plt.subplot(312)
+        plt.subplot(nb_graphs * 100 + 10 + idx)
         plot_pitch_and_phonemes(student_rec, 'r', "Your recording")
-        plt.subplot(313)
+        if not align_audios:
+            plt.legend(bbox_to_anchor=(0, 1, 1, 0), loc="lower right", ncol=1)
+        idx += 1
+        plt.subplot(nb_graphs * 100 + 10 + idx)
         plot_pitch_and_phonemes(teacher_rec, 'b', "Reference audio")
-    else:
-        plt.figure(figsize=(12, 4))
-        plt.title(f"Similarity score: {score}%")
-        plot_aligned_pitches_and_phonemes(student_rec)
+        if not align_audios:
+            plt.legend(bbox_to_anchor=(0, 1, 1, 0), loc="lower right", ncol=1)
+        idx += 1
 
     b = BytesIO()
     plt.savefig(b, format='png')
@@ -136,7 +151,6 @@ def post_graph_png(
                                 detail=detail)
         except Exception:
             logging.error(traceback.format_exc())
-            "No warping path found compatible with the local constraints"
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f'Something went wrong on the server, not your fault :(')
 
@@ -160,6 +174,7 @@ Teacher audio file: <input name="teacher_audio_file" type="file"></br>
 Student audio file: <input name="student_audio_file" type="file"></br>
 Sentence: <input name="sentence" type="text"></br>
 </br>
+<input name="align_audios" type="checkbox">Align audios ?</br>
 <input name="show_all_graphs" type="checkbox">Show all graphs ?</br>
 Align speech using: <select name="alignment_method">
   <option value="phonemes">Phonemes</option>
