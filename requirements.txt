@@ -2,7 +2,7 @@ bqplot==0.12.26
 dtw-python==1.1.10
 jaconv==0.3
 matplotlib==3.4.2
-mecab-python3==1.0.3
+mecab-python3>=1.0.5
 numpy==1.20.2  # avoid v1.19 because of binary incompatibility issues
 praat-parselmouth==0.4.0
 git+https://github.com/itsupera/furigana.git#egg=furigana

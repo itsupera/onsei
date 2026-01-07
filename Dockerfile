@@ -1,15 +1,15 @@
 FROM jupyter/scipy-notebook:8391dae15051
-MAINTAINER Itsupera <itsupera@gmail.com>
+LABEL org.opencontainers.image.authors="itsupera@gmail.com"
 
 # switch to root user to use apt-get
 USER root
 
 RUN apt-get update && apt-get install -y \
   curl file \
-  mecab=0.996-14+b14 \
-  mecab-ipadic=2.7.0-20070801+main-3 \
-  mecab-ipadic-utf8=2.7.0-20070801+main-3 \
-  libmecab-dev=0.996-14+b14 \
+  mecab \
+  mecab-ipadic \
+  mecab-ipadic-utf8 \
+  libmecab-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # NEologd
