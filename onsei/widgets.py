@@ -1,3 +1,5 @@
+import html
+import logging
 import os
 import pathlib
 
@@ -5,7 +7,14 @@ import ipywidgets as widgets
 from traitlets import Dict
 
 from onsei.sentence import Sentence
-from onsei.utils import check_wav_content_is_valid
+from onsei.utils import check_wav_content_is_valid, convert_audio, \
+    parse_wav_file_to_sound_obj
+
+# Anything ffmpeg can decode will do, this is just to catch obvious mistakes
+# (e.g. uploading a video or a text file) before running the conversion.
+SUPPORTED_RECORDING_EXTENSIONS = ("wav", "mp3", "ogg", "m4a", "webm", "flac", "aac")
+SUPPORTED_RECORDING_FORMATS_HELP = "Supported formats: " + ", ".join(
+    ext.upper() for ext in SUPPORTED_RECORDING_EXTENSIONS)
 
 
 class SampleSelector(widgets.VBox):
@@ -155,3 +164,91 @@ class UploadSample(widgets.VBox):
             self.w_file_upload._counter = 0
             self.w_sentence.value = ""
             self.w_notif.value = '<span style="color:#00ff00;">Successful !</span>'
+
+
+class UploadRecording(widgets.VBox):
+    """
+    Lets the user submit a recording made outside of the app,
+    as an alternative to recording directly in the browser.
+    The uploaded audio is converted to the WAV format expected by SpeechRecord.
+    """
+    value = Dict().tag(sync=True)
+
+    def __init__(self, my_recordings_dir, **kwargs):
+        super().__init__(**kwargs)
+
+        self.basepath = my_recordings_dir
+        pathlib.Path(self.basepath).mkdir(parents=True, exist_ok=True)
+
+        # Used to give each upload its own filename, so that uploading the same
+        # file twice still notifies the observers.
+        self.upload_count = 0
+
+        self.w_file_upload = widgets.FileUpload(
+            description='Upload',
+            tooltip=f"Use a recording you made outside the app. "
+                    f"{SUPPORTED_RECORDING_FORMATS_HELP}",
+            icon='upload',
+            accept=",".join(f".{ext}" for ext in SUPPORTED_RECORDING_EXTENSIONS),
+            multiple=False,
+        )
+        # The label is rendered by the stylesheet, see the notebook
+        self.w_file_upload.add_class('onsei-upload')
+        self.w_file_upload.observe(self._add_recording, 'value')
+
+        self.w_notif = widgets.HTML(value='')
+
+        self.children = [self.w_file_upload, self.w_notif]
+
+        self.value = {}
+
+    def clear_notif(self):
+        self.w_notif.value = ''
+
+    def _add_recording(self, _):
+        uploads = list(self.w_file_upload.value.items())
+        # Double-checking with the _counter because sometimes the value is not cleared !
+        if not uploads or self.w_file_upload._counter == 0:
+            return
+
+        filename, upload = uploads[0]
+
+        # Clear right away: this frees the uploaded bytes and makes sure uploading
+        # the same file again is picked up. Note that resetting the counter is what
+        # rebuilds `value`, so `metadata` and `data` have to be emptied first.
+        with self.w_file_upload.hold_sync():
+            self.w_file_upload.metadata = []
+            self.w_file_upload.data = []
+            self.w_file_upload._counter = 0
+
+        extension = os.path.splitext(filename)[1].lstrip('.').lower()
+        if extension not in SUPPORTED_RECORDING_EXTENSIONS:
+            self.w_notif.value = (
+                '<span style="color:#ff0000;">Unsupported audio format !</span>'
+            )
+            return
+
+        self.upload_count += 1
+        # Keep the two paths distinct, ffmpeg refuses to convert a file onto itself
+        original_filepath = os.path.join(
+            self.basepath, f"upload_{self.upload_count}.{extension}")
+        with open(original_filepath, 'wb') as output_file:
+            output_file.write(upload['content'])
+
+        wav_filepath = os.path.join(
+            self.basepath, f"recording_{self.upload_count}.wav")
+        try:
+            convert_audio(original_filepath, wav_filepath)
+            # Will raise if the conversion did not produce a usable recording
+            parse_wav_file_to_sound_obj(wav_filepath)
+        except Exception:
+            logging.exception("Could not convert the uploaded recording")
+            self.w_notif.value = (
+                '<span style="color:#ff0000;">Could not read this audio file !</span>'
+            )
+            return
+
+        self.w_notif.value = (
+            f'<span style="color:#00ff00;">Using {html.escape(filename)}</span>'
+        )
+        self.value = {"filename": wav_filepath}
